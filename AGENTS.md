@@ -11,10 +11,10 @@ It is the single point of control: spawn workers, dispatch tasks, supervise, rep
 
 - **Project** → one herdr workspace, labeled with the project name.
 - **Issue** → one herdr worktree (git worktree + its own workspace), id = Linear issue id or local `tNNN`.
-- **Task** → exactly **one pane** in the issue worktree, labeled `<type>-<slug>` (3-4 word slug). One task is one pane — never more.
+- **Task** → exactly **one tab** in the issue worktree, labeled `<type>-<slug>` (3-4 word slug). One task is one tab — never more.
 - **Task types**: `plan`, `research`, `work`, `review`. Each is also a root alias: `foreman work "title"` = `foreman task new --type work`.
 - Task files: `.assembly/tasks/<id>-<type>-<slug>.json`.
-- Agents are not named; panes are. herdr agent ops target panes by `wX:pY` id.
+- Agents are not named; tabs are. herdr agent ops target the pane inside the task tab (`wX:pY`).
 - **Mailbox**: `.assembly/mailbox/<to>/<ts>-<from>-<type>.json` — how agents and the user exchange messages.
 
 ## Coding style — functional, no hidden state
@@ -46,7 +46,7 @@ It is the single point of control: spawn workers, dispatch tasks, supervise, rep
 
 - `herdr agent read` / `pane read` print plain text, not JSON; `--lines N` can return empty — default to the full snapshot.
 - `herdr workspace create` and `worktree create` return the root pane directly — no need to list panes after.
-- `pane split` result nests the pane under `result.pane`; workspace create nests under `result.workspace`/`result.root_pane`.
+- `pane split` result nests the pane under `result.pane`; workspace create nests under `result.workspace`/`result.root_pane`; `tab create` under `result.tab`/`result.root_pane`.
 - `herdr worktree list` `label` is the repo name, not the custom workspace label — match worktrees by `path`.
 - Config paths must be absolute before comparing with herdr output (resolve relative to repo dir).
 - Failed task creation can leave a stale git worktree + branch — clean both before retrying.

@@ -9,7 +9,7 @@ to reviews, review others' PRs.
 
 - [x] M1 — herdr control: spawn pi agents, prompt, wait, read, close
 - [x] M2 — task state, herdr worktrees per issue, labeled panes per task, mailbox
-- [ ] M3 — watcher: poll Linear + GitHub, nudge foreman
+- [x] M3 — watcher: poll Linear + GitHub, deliver as mail, nudge foreman
 - [ ] M4 — foreman/worker skills, full task lifecycle
 - [ ] M5 — restart recovery, blocked detection, PR review flow
 
@@ -24,6 +24,7 @@ foreman read REF [--lines N]
 foreman wait REF [--until done,idle,blocked]
 foreman mail send BODY --from A --to B --type question|result|handoff|status
 foreman mail list [BOX]
+foreman watch [--once]              # poll loop: linear + github + mailbox
 foreman init [--repo DIR]
 ```
 
@@ -32,7 +33,7 @@ foreman init [--repo DIR]
 ```
 project   1 herdr workspace (project name)
 └─ issue  1 herdr worktree, branch <prefix><id>-<slug>
-   └─ task 1 pane labeled <type>-<slug>, pi inside
+   └─ task 1 tab labeled <type>-<slug>, pi inside
       task file: .assembly/tasks/<id>-<type>-<slug>.json
 mailbox: .assembly/mailbox/<to>/<ts>-<from>-<type>.json
 ```

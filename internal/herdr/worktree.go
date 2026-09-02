@@ -71,3 +71,30 @@ func RemoveWorktree(workspaceID string, force bool) error {
 func RenamePane(paneID, label string) error {
 	return run(nil, "pane", "rename", paneID, label)
 }
+
+// Tab is a labeled layout container inside a workspace.
+type Tab struct {
+	ID          string `json:"tab_id"`
+	Label       string `json:"label"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type tabCreateResult struct {
+	Tab  Tab  `json:"tab"`
+	Root Pane `json:"root_pane"`
+}
+
+// CreateTab makes a labeled tab in a workspace and returns the tab id
+// plus its root pane (where an agent can be started).
+func CreateTab(workspaceID, label string) (tabID, paneID string, err error) {
+	var r tabCreateResult
+	if err := run(&r, "tab", "create", "--workspace", workspaceID, "--label", label, "--no-focus"); err != nil {
+		return "", "", err
+	}
+	return r.Tab.ID, r.Root.ID, nil
+}
+
+// CloseTab closes a tab and its panes.
+func CloseTab(tabID string) error {
+	return run(nil, "tab", "close", tabID)
+}

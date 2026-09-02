@@ -37,17 +37,18 @@ const (
 	StateFailed  = "failed"
 )
 
-// Task is one unit of work: one issue, one type, one pane.
+// Task is one unit of work: one issue, one type, one tab.
 type Task struct {
-	ID         string    `json:"id"`          // issue id or local tNNN
-	Type       string    `json:"type"`        // plan | research | work | review
-	Slug       string    `json:"slug"`        // 3-4 words from the title
+	ID         string    `json:"id"`           // issue id or local tNNN
+	Type       string    `json:"type"`         // plan | research | work | review
+	Slug       string    `json:"slug"`         // 3-4 words from the title
 	Title      string    `json:"title"`
-	State      string    `json:"state"`       // picked | working | done | blocked | failed
-	Branch     string    `json:"branch"`      // <prefix><id>-<slug>
-	WorkspaceID string   `json:"workspace_id"` // the issue worktree's herdr workspace
-	PaneID     string    `json:"pane_id"`
-	PaneLabel  string    `json:"pane_label"` // <type>-<slug>
+	State      string    `json:"state"`        // picked | working | done | blocked | failed
+	Branch     string    `json:"branch"`       // <prefix><id>-<slug>
+	WorkspaceID string   `json:"workspace_id"`  // the issue worktree's herdr workspace
+	TabID      string    `json:"tab_id"`       // the task's tab in the worktree workspace
+	TabLabel   string    `json:"tab_label"`    // <type>-<slug>
+	PaneID     string    `json:"pane_id"`      // the tab's pane running pi
 	Message    string    `json:"message,omitempty"` // initial prompt, if any
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`

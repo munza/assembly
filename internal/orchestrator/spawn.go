@@ -52,11 +52,11 @@ func NewTask(cfg *config.Config, taskType, title, issue, message, model string) 
 		return nil, err
 	}
 
-	// Root pane of the worktree is a shell; split it for the task pane.
-	rootPane := wsID + ":p1"
-	pane, err := herdr.SplitPane(rootPane, "right", "")
+	// One task is one tab in the issue worktree's workspace.
+	tabLabel := taskType + "-" + slug
+	tabID, paneID, err := herdr.CreateTab(wsID, tabLabel)
 	if err != nil {
-		return nil, fmt.Errorf("split pane: %w", err)
+		return nil, fmt.Errorf("create tab: %w", err)
 	}
 
 	t := &task.Task{
@@ -67,22 +67,23 @@ func NewTask(cfg *config.Config, taskType, title, issue, message, model string) 
 		State:       task.StatePicked,
 		Branch:      cfg.BranchPrefix + id + "-" + slug,
 		WorkspaceID: wsID,
-		PaneID:      pane.ID,
-		PaneLabel:   taskType + "-" + slug,
+		TabID:       tabID,
+		TabLabel:    tabLabel,
+		PaneID:      paneID,
 		Message:     message,
 	}
 
-	// Label the pane, then start pi in it under the same label.
-	if err := herdr.RenamePane(t.PaneID, t.PaneLabel); err != nil {
-		return nil, err
-	}
+	// Start pi in the tab. Agent name stays short (<type>-<id>); the tab
+	// carries the full label.
+	agentName := taskType + "-" + id
 	agentArgs := []string{}
 	if model != "" {
 		agentArgs = append(agentArgs, "--model", model)
 	} else if cfg.Model != "" {
 		agentArgs = append(agentArgs, "--model", cfg.Model)
 	}
-	if err := herdr.AgentStart(t.PaneLabel, "pi", t.PaneID, agentArgs...); err != nil {
+	if err := herdr.AgentStart(agentName, "pi", t.PaneID, agentArgs...); err != nil {
+		_ = herdr.CloseTab(t.TabID) // roll back the empty tab
 		return nil, fmt.Errorf("start pi: %w", err)
 	}
 	if err := t.Save(); err != nil {
@@ -101,10 +102,10 @@ func NewTask(cfg *config.Config, taskType, title, issue, message, model string) 
 	return t, nil
 }
 
-// CloseTask marks a task done and frees its pane. The issue worktree is
+// CloseTask marks a task done and frees its tab. The issue worktree is
 // removed only when no sibling tasks still use it.
 func CloseTask(t *task.Task) error {
-	if err := herdr.ClosePane(t.PaneID); err != nil {
+	if err := herdr.CloseTab(t.TabID); err != nil {
 		return err
 	}
 	t.State = task.StateDone

@@ -72,7 +72,8 @@ func truncate(s string, n int) string {
 
 // AgentState describes one detected agent from `herdr agent list`.
 type AgentState struct {
-	Agent       string `json:"agent"`
+	Agent       string `json:"agent"`        // kind, e.g. "pi"
+	Name        string `json:"name"`         // agent name, when named
 	Status      string `json:"agent_status"` // working | blocked | done | idle | unknown
 	PaneID      string `json:"pane_id"`
 	WorkspaceID string `json:"workspace_id"`

@@ -67,7 +67,7 @@ func taskNewUse(aliasType string) string {
 
 func taskNewShort(aliasType string) string {
 	if aliasType == "" {
-		return "Create a task: worktree per issue, pane per task"
+		return "Create a task: worktree per issue, tab per task"
 	}
 	return "Create a " + aliasType + " task"
 }
@@ -221,4 +221,18 @@ func firstLine(s string, n int) string {
 		return s[:n] + "…"
 	}
 	return s
+}
+
+var watchOnce bool
+
+func newWatchCmd(d deps) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "watch",
+		Short: "Poll Linear + GitHub, deliver events as mail, nudge the foreman pane",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runWatch(d, watchOnce)
+		},
+	}
+	c.Flags().BoolVar(&watchOnce, "once", false, "poll once and exit")
+	return c
 }
