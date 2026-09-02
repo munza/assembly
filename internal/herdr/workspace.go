@@ -23,6 +23,20 @@ type workspaceListResult struct {
 	Workspaces []Workspace `json:"workspaces"`
 }
 
+// FindWorkspaceByLabel returns the workspace with the given label, or nil.
+func FindWorkspaceByLabel(label string) (*Workspace, error) {
+	wss, err := ListWorkspaces()
+	if err != nil {
+		return nil, err
+	}
+	for i := range wss {
+		if wss[i].Label == label {
+			return &wss[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // ListWorkspaces returns all workspaces in the current session.
 func ListWorkspaces() ([]Workspace, error) {
 	var r workspaceListResult
@@ -53,6 +67,20 @@ func CreateWorkspace(label, cwd string) (Workspace, Pane, error) {
 // CloseWorkspace closes a workspace by id, killing its panes.
 func CloseWorkspace(id string) error {
 	return run(nil, "workspace", "close", id)
+}
+
+// FindAgentByName returns the named agent's state, or nil.
+func FindAgentByName(name string) *AgentState {
+	agents, err := ListAgents()
+	if err != nil {
+		return nil
+	}
+	for i := range agents {
+		if agents[i].Name == name {
+			return &agents[i]
+		}
+	}
+	return nil
 }
 
 type paneSplitResult struct {

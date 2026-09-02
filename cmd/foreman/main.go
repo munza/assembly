@@ -29,11 +29,13 @@ func main() {
 		newTaskListCmd(d),
 		newTaskShowCmd(d),
 		newTaskCloseCmd(d),
+		newTaskSetCmd(d),
 	)
 
 	root := newRootCmd(d)
 	root.AddCommand(
 		taskCmd,
+		newStartCmd(d),
 		newTaskNewCmd(d, task.TypePlan),
 		newTaskNewCmd(d, task.TypeResearch),
 		newTaskNewCmd(d, task.TypeWork),
@@ -109,16 +111,19 @@ func runTaskClose(ref string) error {
 	return nil
 }
 
-// paneFor resolves a task ref (or raw pane id) to a herdr target.
+// paneFor resolves a task ref, agent name (e.g. "foreman"), or raw pane id
+// to a herdr pane target.
 func paneFor(ref string) (string, error) {
 	if strings.Contains(ref, ":") { // already a pane id like wE:p2
 		return ref, nil
 	}
-	t, err := task.Find(ref)
-	if err != nil {
-		return "", err
+	if t, err := task.Find(ref); err == nil {
+		return t.PaneID, nil
 	}
-	return t.PaneID, nil
+	if a := herdr.FindAgentByName(ref); a != nil {
+		return a.PaneID, nil
+	}
+	return "", fmt.Errorf("neither task nor agent: %s", ref)
 }
 
 // runPrompt sends text to a task's agent.
@@ -157,6 +162,30 @@ func runWatch(d deps, once bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return watcher.Run(ctx, d.cfg, log)
+}
+
+// runTaskSet updates a task's state (used by workers via the CLI).
+func runTaskSet(ref, state string) error {
+	t, err := task.Find(ref)
+	if err != nil {
+		return err
+	}
+	if err := orchestrator.SetState(t, state); err != nil {
+		return err
+	}
+	fmt.Printf("%s -> %s\n", t.Ref(), state)
+	return nil
+}
+
+// runStart brings up the foreman liaison agent.
+func runStart(d deps) error {
+	paneID, err := orchestrator.StartForeman(d.cfg)
+	if err != nil {
+		return err
+	}
+	fmt.Println("foreman agent running in pane", paneID)
+	fmt.Println("(run 'foreman watch' in another terminal to feed it events)")
+	return nil
 }
 
 // livePaneStates returns herdr agent states keyed by pane id.

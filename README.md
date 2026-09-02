@@ -10,7 +10,7 @@ to reviews, review others' PRs.
 - [x] M1 — herdr control: spawn pi agents, prompt, wait, read, close
 - [x] M2 — task state, herdr worktrees per issue, labeled panes per task, mailbox
 - [x] M3 — watcher: poll Linear + GitHub, deliver as mail, nudge foreman
-- [ ] M4 — foreman/worker skills, full task lifecycle
+- [x] M4 — foreman/worker skills, full task lifecycle, `foreman start`
 - [ ] M5 — restart recovery, blocked detection, PR review flow
 
 ## Commands
@@ -25,8 +25,18 @@ foreman wait REF [--until done,idle,blocked]
 foreman mail send BODY --from A --to B --type question|result|handoff|status
 foreman mail list [BOX]
 foreman watch [--once]              # poll loop: linear + github + mailbox
+foreman start                       # bring up the foreman liaison agent
+foreman task set REF --state X      # workers update their state
 foreman init [--repo DIR]
 ```
+
+## Skills
+
+`.pi/skills/foreman/SKILL.md` — liaison behavior: classify mail, dispatch
+tasks, relay questions, report results. `.pi/skills/worker/SKILL.md` —
+lifecycle per type (work: plan → code → self-review → PR → address
+comments; plan/research/review variants). Workers get the foreman CLI
+auto-installed at `.assembly/bin/foreman` plus a task-specific prompt.
 
 ## Model
 

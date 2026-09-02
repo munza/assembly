@@ -4,12 +4,70 @@ package orchestrator
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"path/filepath"
 
 	"assembly/internal/config"
 	"assembly/internal/herdr"
 	"assembly/internal/task"
 )
+
+// BinPath is where task new installs the foreman CLI for workers to call.
+func BinPath(cfg *config.Config) string {
+	return filepath.Join(config.StateDir(), "bin", "foreman")
+}
+
+// EnsureBin builds the foreman CLI into .assembly/bin/foreman (best
+// effort: skips quietly if go is unavailable or the build fails).
+func EnsureBin(cfg *config.Config) string {
+	bin := BinPath(cfg)
+	if _, err := exec.LookPath("go"); err == nil {
+		_ = os.MkdirAll(filepath.Dir(bin), 0o755)
+		cmd := exec.Command("go", "build", "-o", bin, "./cmd/foreman")
+		cmd.Dir = cfg.RepoDir
+		if cmd.Run() == nil {
+			abs, _ := filepath.Abs(bin)
+			return abs
+		}
+	}
+	if self, err := os.Executable(); err == nil {
+		_ = os.MkdirAll(filepath.Dir(bin), 0o755)
+		if copyFile(self, bin) == nil {
+			abs, _ := filepath.Abs(bin)
+			return abs
+		}
+	}
+	return "foreman" // hope it's on PATH
+}
+
+func copyFile(src, dst string) error {
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, b, 0o755)
+}
+
+// sanitizeAgentName makes a herdr-safe agent name: lowercase letters,
+// digits, '-' and '_', max 32 chars.
+func sanitizeAgentName(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	name := strings.Trim(b.String(), "-")
+	if len(name) > 32 {
+		name = name[:32]
+	}
+	return name
+}
 
 // ensureWorktree returns the herdr workspace id for an issue, creating the
 // git worktree if needed. One worktree per issue.
@@ -74,8 +132,8 @@ func NewTask(cfg *config.Config, taskType, title, issue, message, model string) 
 	}
 
 	// Start pi in the tab. Agent name stays short (<type>-<id>); the tab
-	// carries the full label.
-	agentName := taskType + "-" + id
+	// carries the full label. herdr requires lowercase/digits/-/_ (max 32).
+	agentName := sanitizeAgentName(taskType + "-" + id)
 	agentArgs := []string{}
 	if model != "" {
 		agentArgs = append(agentArgs, "--model", model)
@@ -90,16 +148,17 @@ func NewTask(cfg *config.Config, taskType, title, issue, message, model string) 
 		return nil, err
 	}
 
+	// Workers need the foreman CLI and their task context. A custom
+	// --message rides on top of the standard prompt.
+	prompt := t.Prompt(EnsureBin(cfg))
 	if message != "" {
-		if err := herdr.AgentPrompt(t.PaneID, message, false, nil, 0); err != nil {
-			return nil, fmt.Errorf("send initial prompt: %w", err)
-		}
-		t.State = task.StateWorking
-		if err := t.Save(); err != nil {
-			return nil, err
-		}
+		prompt += "\n\nAdditional instructions:\n" + message
 	}
-	return t, nil
+	if err := herdr.AgentPrompt(t.PaneID, prompt, false, nil, 0); err != nil {
+		return nil, fmt.Errorf("send initial prompt: %w", err)
+	}
+	t.State = task.StateWorking
+	return t, t.Save()
 }
 
 // CloseTask marks a task done and frees its tab. The issue worktree is

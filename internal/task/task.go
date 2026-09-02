@@ -28,15 +28,6 @@ const (
 // ValidTypes is the closed set of task types.
 var ValidTypes = []string{TypePlan, TypeResearch, TypeWork, TypeReview}
 
-// Task states.
-const (
-	StatePicked  = "picked"
-	StateWorking = "working"
-	StateDone    = "done"
-	StateBlocked = "blocked"
-	StateFailed  = "failed"
-)
-
 // Task is one unit of work: one issue, one type, one tab.
 type Task struct {
 	ID         string    `json:"id"`           // issue id or local tNNN

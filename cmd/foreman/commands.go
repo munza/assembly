@@ -104,6 +104,30 @@ func newTaskCloseCmd(d deps) *cobra.Command {
 	}
 }
 
+func newTaskSetCmd(d deps) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "set REF --state STATE",
+		Short: "Update a task's state",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTaskSet(args[0], cmd.Flag("state").Value.String())
+		},
+	}
+	c.Flags().String("state", "", strings.Join(task.ValidStates, "|"))
+	_ = c.MarkFlagRequired("state")
+	return c
+}
+
+func newStartCmd(d deps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "start",
+		Short: "Start the foreman liaison agent (one per project)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runStart(d)
+		},
+	}
+}
+
 var (
 	promptWait    bool
 	promptTimeout time.Duration
