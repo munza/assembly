@@ -55,17 +55,21 @@ func CloseWorkspace(id string) error {
 	return run(nil, "workspace", "close", id)
 }
 
+type paneSplitResult struct {
+	Pane Pane `json:"pane"`
+}
+
 // SplitPane splits an existing pane and returns the new pane.
 func SplitPane(paneID, direction, cwd string) (Pane, error) {
 	args := []string{"pane", "split", paneID, "--direction", direction}
 	if cwd != "" {
 		args = append(args, "--cwd", cwd)
 	}
-	var p Pane
-	if err := run(&p, args...); err != nil {
+	var r paneSplitResult
+	if err := run(&r, args...); err != nil {
 		return Pane{}, err
 	}
-	return p, nil
+	return r.Pane, nil
 }
 
 // PaneRead returns recent terminal output of a pane (plain text).

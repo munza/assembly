@@ -1,20 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"assembly/internal/config"
 	"assembly/internal/herdr"
-	"assembly/internal/state"
+	"assembly/internal/mailbox"
+	"assembly/internal/task"
 
 	"github.com/spf13/cobra"
 )
 
 // deps carries everything commands need; loaded once in main, passed down.
 type deps struct {
-	cfg   *config.Config
-	store *state.Store
+	cfg *config.Config
 }
 
 func newRootCmd(d deps) *cobra.Command {
@@ -22,108 +23,202 @@ func newRootCmd(d deps) *cobra.Command {
 		Use:   "foreman",
 		Short: "Central control for the assembly agent crew",
 		Long: `foreman is the single point of control for a crew of pi agents
-running in herdr: spawn workers, dispatch tasks, supervise, and report.
+running in herdr: one project workspace, one worktree per issue,
+one labeled pane per task.
 
 Config: .assembly/config.json, overridden by FOREMAN_* env vars.`,
 		SilenceUsage: true,
 	}
 }
 
-func newAgentsCmd(d deps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "agents",
-		Short: "List tracked agents with live state",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAgents(d)
-		},
-	}
-}
-
-func newInitCmd(d deps) *cobra.Command {
-	var repo string
+// newTaskNewCmd builds `task new` or a type alias (plan/research/work/review).
+func newTaskNewCmd(d deps, aliasType string) *cobra.Command {
 	c := &cobra.Command{
-		Use:   "init",
-		Short: "Write .assembly/config.json with defaults",
+		Use:   taskNewUse(aliasType),
+		Short: taskNewShort(aliasType),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(repo)
+			taskType := aliasType
+			if aliasType == "" {
+				taskType = cmd.Flag("type").Value.String()
+			}
+			return runTaskNew(d, taskType, strings.Join(args, " "),
+				cmd.Flag("issue").Value.String(),
+				cmd.Flag("message").Value.String(),
+				cmd.Flag("model").Value.String())
 		},
 	}
-	c.Flags().StringVar(&repo, "repo", "", "path to the project repo agents work on (default: cwd)")
+	c.Flags().String("type", "work", "task type: "+strings.Join(task.ValidTypes, "|"))
+	c.Flags().String("issue", "", "issue id (Linear later); default: generated local id")
+	c.Flags().String("message", "", "initial prompt to send to the agent")
+	c.Flags().String("model", "", "pi model spec (overrides config)")
+	if aliasType != "" {
+		c.Flags().MarkHidden("type")
+	}
 	return c
 }
 
-func newSpawnCmd(d deps) *cobra.Command {
-	var task, model string
-	c := &cobra.Command{
-		Use:   "spawn NAME",
-		Short: "Spawn a pi agent in a new herdr workspace",
+func taskNewUse(aliasType string) string {
+	if aliasType == "" {
+		return "new TITLE..."
+	}
+	return aliasType + " TITLE..."
+}
+
+func taskNewShort(aliasType string) string {
+	if aliasType == "" {
+		return "Create a task: worktree per issue, pane per task"
+	}
+	return "Create a " + aliasType + " task"
+}
+
+func newTaskListCmd(d deps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List tasks with live pane states",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTaskList(d)
+		},
+	}
+}
+
+func newTaskShowCmd(d deps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show REF",
+		Short: "Show one task (id, id-type, or full name)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSpawn(d, args[0], task, model)
+			return runTaskShow(args[0])
 		},
 	}
-	c.Flags().StringVar(&task, "task", "", "task label this agent works on")
-	c.Flags().StringVar(&model, "model", "", "pi model spec, e.g. anthropic/claude-sonnet-4-5:high")
-	return c
 }
+
+func newTaskCloseCmd(d deps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "close REF",
+		Short: "Close a task; removes the issue worktree when unused",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTaskClose(args[0])
+		},
+	}
+}
+
+var (
+	promptWait    bool
+	promptTimeout time.Duration
+)
 
 func newPromptCmd(d deps) *cobra.Command {
-	var (
-		wait    bool
-		timeout time.Duration
-	)
 	c := &cobra.Command{
-		Use:   "prompt NAME TEXT",
-		Short: "Send a prompt to an agent",
+		Use:   "prompt REF TEXT",
+		Short: "Send a prompt to a task's agent",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPrompt(args[0], args[1], wait, timeout)
+			return runPrompt(args[0], args[1], promptWait, promptTimeout)
 		},
 	}
-	c.Flags().BoolVar(&wait, "wait", false, "wait until agent is done")
-	c.Flags().DurationVar(&timeout, "timeout", 30*time.Minute, "max wait when --wait")
+	c.Flags().BoolVar(&promptWait, "wait", false, "wait until agent is done")
+	c.Flags().DurationVar(&promptTimeout, "timeout", 30*time.Minute, "max wait when --wait")
 	return c
 }
+
+var readLines int
 
 func newReadCmd(d deps) *cobra.Command {
-	var lines int
 	c := &cobra.Command{
-		Use:   "read NAME",
-		Short: "Read an agent's terminal output",
+		Use:   "read REF",
+		Short: "Read a task agent's terminal output",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRead(args[0], lines)
+			return runRead(args[0], readLines)
 		},
 	}
-	c.Flags().IntVar(&lines, "lines", 0, "recent lines to read (0 = full snapshot)")
+	c.Flags().IntVar(&readLines, "lines", 0, "recent lines to read (0 = full snapshot)")
 	return c
 }
+
+var (
+	waitUntil   string
+	waitTimeout time.Duration
+)
 
 func newWaitCmd(d deps) *cobra.Command {
-	var (
-		until   string
-		timeout time.Duration
-	)
 	c := &cobra.Command{
-		Use:   "wait NAME",
-		Short: "Wait for an agent to reach a state (idle|working|blocked|done)",
+		Use:   "wait REF",
+		Short: "Wait for a task agent to reach a state (idle|working|blocked|done)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return herdr.AgentWait(args[0], strings.Split(until, ","), timeout)
+			return herdr.AgentWait(args[0], strings.Split(waitUntil, ","), waitTimeout)
 		},
 	}
-	c.Flags().StringVar(&until, "until", "done,idle,blocked", "comma-separated states")
-	c.Flags().DurationVar(&timeout, "timeout", 0, "max wait (0 = forever)")
+	c.Flags().StringVar(&waitUntil, "until", "done,idle,blocked", "comma-separated states")
+	c.Flags().DurationVar(&waitTimeout, "timeout", 0, "max wait (0 = forever)")
 	return c
 }
 
-func newCloseCmd(d deps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "close NAME",
-		Short: "Stop an agent and free its workspace",
-		Args:  cobra.ExactArgs(1),
+func newMailCmd(d deps) *cobra.Command {
+	mail := &cobra.Command{Use: "mail", Short: "On-disk message bus between agents"}
+	mail.AddCommand(newMailSendCmd(d), newMailListCmd(d))
+	return mail
+}
+
+func newMailSendCmd(d deps) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "send BODY",
+		Short: "Write a message to a mailbox",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runClose(d, args[0])
+			m, err := mailbox.Send(
+				cmd.Flag("from").Value.String(),
+				cmd.Flag("to").Value.String(),
+				cmd.Flag("type").Value.String(),
+				strings.Join(args, " "))
+			if err != nil {
+				return err
+			}
+			fmt.Printf("sent %s -> %s (%s)\n", m.From, m.To, m.ID)
+			return nil
 		},
 	}
+	c.Flags().String("from", "user", "sender")
+	c.Flags().String("to", "foreman", "recipient box")
+	c.Flags().String("type", mailbox.TypeStatus, "question|result|handoff|status")
+	return c
+}
+
+func newMailListCmd(d deps) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "list [BOX]",
+		Short: "List messages (newest first)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			box := ""
+			if len(args) == 1 {
+				box = args[0]
+			}
+			msgs, err := mailbox.List(box)
+			if err != nil {
+				return err
+			}
+			for _, m := range msgs {
+				fmt.Printf("%-28s %-8s %-6s %s\n", m.ID, m.From, m.Type, firstLine(m.Body, 60))
+			}
+			if len(msgs) == 0 {
+				fmt.Println("(mailbox empty)")
+			}
+			return nil
+		},
+	}
+	return c
+}
+
+func firstLine(s string, n int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if len(s) > n {
+		return s[:n] + "…"
+	}
+	return s
 }

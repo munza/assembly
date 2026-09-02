@@ -8,7 +8,7 @@ to reviews, review others' PRs.
 ## Status
 
 - [x] M1 — herdr control: spawn pi agents, prompt, wait, read, close
-- [ ] M2 — task state machine, git worktrees, on-disk mailbox
+- [x] M2 — task state, herdr worktrees per issue, labeled panes per task, mailbox
 - [ ] M3 — watcher: poll Linear + GitHub, nudge foreman
 - [ ] M4 — foreman/worker skills, full task lifecycle
 - [ ] M5 — restart recovery, blocked detection, PR review flow
@@ -16,23 +16,36 @@ to reviews, review others' PRs.
 ## Commands
 
 ```
-foreman init [--repo DIR]           write .assembly/config.json
-foreman spawn NAME [--task T]       spawn pi agent in new herdr workspace
-foreman prompt NAME TEXT [--wait]   send prompt, optionally wait for done
-foreman read NAME [--lines N]       read agent terminal output
-foreman wait NAME [--until STATE]   wait for idle|working|blocked|done
-foreman agents                      tracked agents + live state
-foreman close NAME                  stop agent, free workspace
+foreman task new TITLE... --type work [--issue ID] [--message M]
+foreman plan|research|work|review TITLE... [--issue ID]   # type aliases
+foreman task list|show REF|close REF
+foreman prompt REF TEXT [--wait]   # REF = task ref or pane id
+foreman read REF [--lines N]
+foreman wait REF [--until done,idle,blocked]
+foreman mail send BODY --from A --to B --type question|result|handoff|status
+foreman mail list [BOX]
+foreman init [--repo DIR]
+```
+
+## Model
+
+```
+project   1 herdr workspace (project name)
+└─ issue  1 herdr worktree, branch <prefix><id>-<slug>
+   └─ task 1 pane labeled <type>-<slug>, pi inside
+      task file: .assembly/tasks/<id>-<type>-<slug>.json
+mailbox: .assembly/mailbox/<to>/<ts>-<from>-<type>.json
 ```
 
 ## Layout
 
 ```
-cmd/foreman/          CLI entry
-internal/config/      .assembly/config.json
-internal/herdr/       herdr CLI wrapper (workspace/pane/agent ops)
-internal/state/       .assembly/agents.json — restart-safe registry
-internal/orchestrator/ agent lifecycle (spawn/close)
+cmd/foreman/          CLI entry (constructor commands, one registration point)
+internal/config/      layered config: defaults → .assembly/config.json → FOREMAN_* env
+internal/herdr/       herdr wrapper (workspace/pane/worktree/agent ops)
+internal/task/        task files: one task = one pane
+internal/mailbox/     on-disk message bus
+internal/orchestrator/ task lifecycle (new/close)
 ```
 
 ## Requirements
