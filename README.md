@@ -59,6 +59,13 @@ internal/mailbox/     on-disk message bus
 internal/orchestrator/ task lifecycle (new/close)
 ```
 
+## Build & test
+
+```
+make build    # .assembly/bin/foreman
+make test     # go test ./...
+```
+
 ## Requirements
 
 - Go 1.26+
