@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -78,7 +79,7 @@ func newMailboxCmd() *cobra.Command {
 				return err
 			}
 			if sendStatus != "" && !store.ValidTaskStatus(sendStatus) {
-				return fmt.Errorf("invalid status %q; valid: %s", sendStatus, joinTaskStatuses())
+				return fmt.Errorf("invalid status %q; valid: %s", sendStatus, strings.Join(store.TaskStatuses, "|"))
 			}
 			from := store.SenderLabel(t.PaneID)
 			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
@@ -110,7 +111,7 @@ func newMailboxCmd() *cobra.Command {
 			return nil
 		},
 	}
-	send.Flags().StringVar(&sendStatus, "status", "", "report task status: "+joinTaskStatuses())
+	send.Flags().StringVar(&sendStatus, "status", "", "report task status: "+strings.Join(store.TaskStatuses, "|"))
 
 	cmd := &cobra.Command{
 		Use:   "mailbox",
@@ -161,15 +162,4 @@ func printMessage(m *store.Message) {
 		status = " [" + m.Status + "]"
 	}
 	fmt.Printf("%s  %s  task %s%s\n  %s\n", m.Time.Local().Format(time.RFC3339), m.From, m.TaskID, status, m.Body)
-}
-
-func joinTaskStatuses() string {
-	out := ""
-	for i, s := range store.TaskStatuses {
-		if i > 0 {
-			out += "|"
-		}
-		out += s
-	}
-	return out
 }
