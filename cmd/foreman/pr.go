@@ -16,7 +16,8 @@ import (
 func newPRCmd() *cobra.Command {
 	var (
 		createTitle, createBase string
-		getComments             bool
+		createNoTemplate       bool
+		getComments            bool
 	)
 
 	create := &cobra.Command{
@@ -53,6 +54,15 @@ func newPRCmd() *cobra.Command {
 			if title == "" {
 				title = wt.Branch
 			}
+			tmplPath, tmpl := "", ""
+			if !createNoTemplate {
+				tmplPath, tmpl = git.PRTemplate(wt.Path)
+			}
+			if tmpl != "" && body != "" {
+				body = body + "\n\n" + tmpl
+			} else if tmpl != "" {
+				body = tmpl
+			}
 			if !git.GhAvailable() {
 				return fmt.Errorf("gh not found in PATH")
 			}
@@ -61,6 +71,9 @@ func newPRCmd() *cobra.Command {
 			}
 			if flagDryRun {
 				fmt.Println("would run: git -C " + wt.Path + " push -u origin " + wt.Branch)
+				if tmplPath != "" {
+				fmt.Println("would use PR template: " + tmplPath)
+			}
 				ghArgs := []string{"gh", "pr", "create", "--title", title, "--head", wt.Branch, "--repo", p.Repo}
 				if createBase != "" {
 					ghArgs = append(ghArgs, "--base", createBase)
@@ -72,7 +85,7 @@ func newPRCmd() *cobra.Command {
 			if err := git.Push(wt.Path, wt.Branch); err != nil {
 				return err
 			}
-			url, err := git.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
+			url, existed, err := git.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
 			if err != nil {
 				return err
 			}
@@ -81,16 +94,26 @@ func newPRCmd() *cobra.Command {
 				prNum, _ = strconv.Atoi(url[i+1:])
 			}
 			wt.PR = prNum
-			wt.Status = store.WtPROpen
+			if !existed && wt.Status != store.WtPROpen {
+				wt.Status = store.WtPROpen
+			}
 			if err := store.Save(s); err != nil {
 				return err
 			}
-			fmt.Printf("created PR %s for worktree %s\n", url, wt.Slug)
+			if existed {
+				fmt.Printf("PR already open: %s (branch pushed)\n", url)
+			} else {
+				fmt.Printf("created PR %s for worktree %s\n", url, wt.Slug)
+			}
+			if tmplPath != "" {
+				fmt.Printf("using PR template: %s\n", tmplPath)
+			}
 			return nil
 		},
 	}
 	create.Flags().StringVar(&createTitle, "title", "", "PR title (defaults to Linear issue title, else branch name)")
 	create.Flags().StringVar(&createBase, "base", "", "base branch (defaults to repo default)")
+	create.Flags().BoolVar(&createNoTemplate, "no-template", false, "ignore the repo PR template")
 
 	get := &cobra.Command{
 		Use:   "get <pr|worktree>",
@@ -175,6 +198,22 @@ func printPR(v map[string]any) {
 	}
 	if rd, _ := v["reviewDecision"].(string); rd != "" {
 		fmt.Printf("review:  %s\n", rd)
+	}
+	if roll, ok := v["statusCheckRollup"].([]any); ok && len(roll) > 0 {
+		pass, fail, pending := 0, 0, 0
+		for _, c := range roll {
+			cm, _ := c.(map[string]any)
+			conc, _ := cm["conclusion"].(string)
+			switch {
+			case conc == "SUCCESS":
+				pass++
+			case conc != "":
+				fail++
+			default:
+				pending++
+			}
+		}
+		fmt.Printf("ci:      %d pass, %d fail, %d pending\n", pass, fail, pending)
 	}
 	if comments, ok := v["comments"].([]any); ok {
 		if len(comments) > 0 {

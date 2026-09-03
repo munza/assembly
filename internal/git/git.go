@@ -3,7 +3,10 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -21,6 +24,49 @@ func Origin(path string) (string, error) {
 
 func IsRepo(path string) bool {
 	return exec.Command("git", "-C", path, "rev-parse", "--git-dir").Run() == nil
+}
+
+var prTemplatePaths = []string{
+	".github/PULL_REQUEST_TEMPLATE.md",
+	"PULL_REQUEST_TEMPLATE.md",
+	"docs/PULL_REQUEST_TEMPLATE.md",
+}
+
+var prTemplateDirs = []string{
+	".github/PULL_REQUEST_TEMPLATE",
+	"PULL_REQUEST_TEMPLATE",
+	"docs/PULL_REQUEST_TEMPLATE",
+}
+
+func PRTemplate(dir string) (string, string) {
+	for _, p := range prTemplatePaths {
+		b, err := os.ReadFile(filepath.Join(dir, p))
+		if err == nil {
+			return p, string(b)
+		}
+	}
+	for _, d := range prTemplateDirs {
+		entries, err := os.ReadDir(filepath.Join(dir, d))
+		if err != nil {
+			continue
+		}
+		var names []string
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
+				names = append(names, e.Name())
+			}
+		}
+		if len(names) == 0 {
+			continue
+		}
+		sort.Strings(names)
+		p := filepath.Join(d, names[0])
+		b, err := os.ReadFile(filepath.Join(dir, p))
+		if err == nil {
+			return p, string(b)
+		}
+	}
+	return "", ""
 }
 
 func Push(dir, branch string) error {
