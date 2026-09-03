@@ -182,11 +182,11 @@ worktree still has running research gets a "wait for the report paths" line in
 its prompt — end the turn, do not poll; the paths arrive as a pushed message.
 The central agent sends them once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
-the single skill — keep it in sync with behavior changes. The build-pipeline
-skill (`.agents/skills/build-pipeline/`) drives the gated pipeline flow
-(plan → build → test → review with a fix loop); the pr-pipeline skill
-(`.agents/skills/pr-pipeline/`) continues from a clean review through docs,
-lint, PR, CI and merge. Keep them all in sync.
+the single skill — keep it in sync with behavior changes. The pipeline skill
+(`.agents/skills/pipeline/`, references `build.md` + `pr.md`) drives the
+gated make-no-mistake flow: `pipeline build` (plan → build → test → review
+with a fix loop) and `pipeline pr` (docs → lint → PR → CI → merge), or plain
+`pipeline` for the full run. Keep them all in sync.
 
 ## Core flow
 
