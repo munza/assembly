@@ -75,10 +75,12 @@ mailbox send <task-id> <message> [--status pending|in-progress|self-review|done|
 Direction is automatic: running inside the task's tab → report to foreman;
 anywhere else → prompt delivered into the worker's tab.
 
-## status
+## status / clean
 
 ```
 status    # overview: worktrees, running tasks, unread mail
+clean     # stop watchman, clear state.json + mailbox (settings kept; herdr
+          # workspaces and tabs created earlier are left behind)
 ```
 
 ## watchman (separate binary: `go run ./cmd/watchman`)

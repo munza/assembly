@@ -24,7 +24,8 @@ func newRootCmd() *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if !flagDryRun {
 				for c := cmd; c != nil; c = c.Parent() {
-					if c.Name() == "help" || c.Name() == "completion" {
+					switch c.Name() {
+					case "help", "completion", "clean":
 						return nil
 					}
 				}
@@ -44,6 +45,7 @@ func newRootCmd() *cobra.Command {
 		newPRCmd(),
 		newMailboxCmd(),
 		newStatusCmd(),
+		newCleanCmd(),
 	)
 	root.AddCommand(newAliasCmds()...)
 	return root
