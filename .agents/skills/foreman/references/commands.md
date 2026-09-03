@@ -94,7 +94,8 @@ watchman status
 
 Pushes unread worker/watch mailbox messages into the foreman tab
 (`herdr agent prompt`) and polls GitHub PRs. Auto-starts detached on any
-foreman command run from the foreman tab; exits when that tab closes.
+foreman command run from the foreman tab; exits when the pane's agent is
+gone (tab closed or pi exited).
 
 ## Status models
 

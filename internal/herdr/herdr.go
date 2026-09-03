@@ -146,7 +146,10 @@ func AgentPrompt(name, text string) error {
 	return err
 }
 
-func PaneExists(paneID string) (bool, error) {
+// PaneAgentAlive reports whether the pane exists and still runs an agent
+// (e.g. pi). A pane whose agent exited — tab left open on a shell — counts
+// as gone: there is nothing left to deliver prompts to.
+func PaneAgentAlive(paneID string) (bool, error) {
 	res, err := RunJSON("pane", "list")
 	if err != nil {
 		return false, err
@@ -154,7 +157,8 @@ func PaneExists(paneID string) (bool, error) {
 	panes, _ := dig(res, "result", "panes").([]any)
 	for _, p := range panes {
 		if m, ok := p.(map[string]any); ok && m["pane_id"] == paneID {
-			return true, nil
+			agent, _ := m["agent"].(string)
+			return agent != "", nil
 		}
 	}
 	return false, nil

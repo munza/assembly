@@ -153,7 +153,7 @@ func Run(opts Options) error {
 		case <-pollC:
 			poll()
 		case <-liveC:
-			ok, err := herdr.PaneExists(opts.ForemanPane)
+			ok, err := herdr.PaneAgentAlive(opts.ForemanPane)
 			if err != nil {
 				logf("liveness: %v", err)
 				continue
@@ -163,9 +163,9 @@ func Run(opts Options) error {
 				continue
 			}
 			misses++
-			logf("foreman pane %s gone (%d/3)", opts.ForemanPane, misses)
+			logf("foreman agent on %s gone (%d/3)", opts.ForemanPane, misses)
 			if misses >= 3 {
-				logf("foreman tab closed; stopping")
+				logf("foreman agent gone; stopping")
 				return nil
 			}
 		case err := <-w.Errors:

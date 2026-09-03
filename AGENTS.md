@@ -115,8 +115,9 @@ watchman status
 
 Any foreman command run from the foreman tab (a herdr pane whose `.assembly/`
 holds `settings.json`, no `FOREMAN_STATE_DIR` set) lazily starts the detached
-watchman bound to that pane; it exits when the pane closes.
-`FOREMAN_NO_WATCHMAN=1` disables auto-start.
+watchman bound to that pane; it exits when the pane's agent is gone (tab
+closed or pi exited). `FOREMAN_NO_WATCHMAN=1`
+disables auto-start.
 
 ### Aliases (shortcuts to `task add`)
 
