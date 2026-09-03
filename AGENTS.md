@@ -96,11 +96,25 @@ foreman
   mailbox
     inbox                    # --unread to show only unread
     send <task-id> <message> # --status done|blocked|failed|in-progress|self-review
-  watch                      # --interval --pr --project
   status                     # one-screen overview: worktrees + status, running
                              # tasks, unread mail — the central instance's home view
   help
 ```
+
+The `watchman` binary (`cmd/watchman`) is the daemon half:
+
+```
+watchman [start] [--detached] [--interval N] [--project X] [--pr]
+                             [--foreman-pane ID]   # foreground by default;
+                             --detached spawns a background instance (idempotent)
+watchman stop
+watchman status
+```
+
+Any foreman command run from the foreman tab (a herdr pane whose `.assembly/`
+holds `settings.json`, no `FOREMAN_STATE_DIR` set) lazily starts the detached
+watchman bound to that pane; it exits when the pane closes.
+`FOREMAN_NO_WATCHMAN=1` disables auto-start.
 
 ### Aliases (shortcuts to `task add`)
 
@@ -130,7 +144,12 @@ One command serves both directions. Sender is detected by comparing the shell's
   `go build -o .assembly/bin/foreman ./cmd/foreman`) and embeds the full path
   in the worker prompt.
 - `foreman mailbox inbox` prints messages and marks the shown ones read.
-  `--follow` keeps watching the mailbox dir (fsnotify) for new messages.
+  `--follow` keeps watching the mailbox dir (fsnotify) — manual debugging only.
+- The watchman daemon watches the mailbox (fsnotify + 30s sweep) and pushes
+  unread worker/watch messages into the foreman tab via
+  `herdr agent prompt <pane-id>`, marking them read — the central instance
+  never polls. Messages the foreman itself sent are skipped (mailbox send
+  already delivered those into the worker's tab).
 - Workers must have the `foreman` binary on PATH (install with
   `go install ./cmd/foreman`); the task prompt tells them the exact command to run.
 
@@ -149,7 +168,8 @@ Plan/research workers write their report to `output/<task-id>-<label>.md` and
 reference the path in their done message; their tabs close automatically on
 `done`/`failed` (blocked keeps the tab open for the answer). A plan task whose
 worktree still has running research gets a "wait for the report paths" line in
-its prompt; the central agent sends the paths once all research is done.
+its prompt — end the turn, do not poll; the paths arrive as a pushed message.
+The central agent sends them once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
 the single skill — keep it in sync with behavior changes.
 
@@ -162,8 +182,9 @@ the single skill — keep it in sync with behavior changes.
 4. `task add` (or aliases) creates tasks in that worktree.
 5. `task execute <task-id>` spawns a pi agent in a new herdr tab in the worktree dir.
 6. Workers message the central instance with `mailbox send` and `--status`.
-7. `watch` polls GitHub: PR comments, PRs assigned to me as reviewer, status changes.
-   Events are delivered to the central instance's mailbox.
+7. The watchman daemon polls GitHub: PR comments, PRs assigned to me as reviewer,
+   status changes. Events land in the mailbox and the daemon pushes them into
+   the central instance's tab.
 8. `worktree teardown` / `remove` ends the cycle.
 
 ## Status model (two levels)
@@ -171,11 +192,12 @@ the single skill — keep it in sync with behavior changes.
 - **Task status** — set by worker agents via `mailbox send --status`:
   `pending` → `in-progress` → `self-review` → `done` | `blocked` | `failed`.
   Workers know only their own task and never set PR states.
-- **Worktree status** — set only by the central foreman or by `watch`, derived from
+- **Worktree status** — set only by the central foreman or by the watchman
+  daemon, derived from
   tasks + GitHub events:
   `planning` → `building` → `pr-open` → `awaiting-review` → `addressing-comments` →
   `ready-for-merge` → `done` (plus `blocked`/`failed` when work stops).
-- `watch` auto-derives worktree status: PR opened → `pr-open`; reviewer assigned →
+- The watchman daemon auto-derives worktree status: PR opened → `pr-open`; reviewer assigned →
   `awaiting-review`; new comment → `addressing-comments`; approved + CI green →
   `ready-for-merge`; merged → `done`.
 - `task --status` and `worktree --status` accept only their own level's values.
@@ -258,12 +280,15 @@ Both files are created lazily on first write — an empty `.assembly/` with only
 - Language: **Go**. Binary: `foreman` (package `cmd/foreman`).
 - Layout:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
-    project, issue, worktree, task, pr, mailbox, watch).
+    project, issue, worktree, task, pr, mailbox, status).
+  - `cmd/watchman/` — daemon entrypoint: start/stop/status, foreground by
+    default, `--detached` for the background lifecycle.
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
   - `internal/git/` — local git helpers plus GitHub PR calls via `gh`.
   - `internal/herdr/`, `internal/linear/` — thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
-  - `internal/watchman/` — event watching (`fsnotify`).
+  - `internal/watchman/` — the daemon core: mailbox watching + push delivery,
+    GitHub PR polling, detached spawn, pane liveness (`fsnotify`).
 - Prefer thin wrappers: foreman shells out to `git`, `herdr`, `gh` (GitHub), and the
   Linear API. Do not reimplement them.
 
@@ -304,8 +329,8 @@ These apply to every change to this repo, human or agent:
   is hardcoded in the template. Config values and their
   accessors belong to `internal/config` (e.g. `config.LinearAPIKey()`), never
   re-implemented in cmd files.
-- No tests yet. Personal tool in early scaffolding; revisit once the core loop is
-  proven.
+- Only targeted regression tests where a real bug bit (e.g. `internal/store`
+  MarkRead rewriting hand-written mailbox files); no broad suite yet.
 - Stdlib first. Add a third-party dependency only when a concrete, demonstrated
   problem justifies it — never preemptively. Current justified deps:
   - `spf13/cobra` in `cmd/foreman`: stdlib `flag` silently drops flags placed after a

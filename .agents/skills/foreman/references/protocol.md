@@ -16,7 +16,9 @@ foreman mailbox send t3 "<summary>" --status in-progress|self-review|done|blocke
 Plus, depending on type:
 
 - plan with running research: "Research tasks t2, t3 are still running. Do NOT
-  plan yet. Wait for a follow-up message containing their report paths..."
+  plan yet and do NOT poll the mailbox. End your turn and wait: their report
+  paths will be delivered into this tab as a new message; plan using them when
+  it arrives."
 - plan/research: "When finished, write your full report to
   `output/<task-id>-<label>.md` ... then send ONE final mailbox message
   containing that path with --status done. Your tab closes automatically."
@@ -46,10 +48,14 @@ Keep this contract in sync with `buildPrompt` in `cmd/foreman/task.go`.
 - A worker `mailbox send --status done|failed` from a research or plan tab
   closes its own tab automatically (detached close, so the message lands
   first). Blocked workers keep their tab open for the answer.
+- The watchman daemon watches the mailbox (fsnotify + 30s sweep) and pushes
+  unread worker/watch messages into the foreman tab via `herdr agent prompt
+  <pane-id>`, marking them read — no polling anywhere. Messages the foreman
+  itself sent are skipped: mailbox send already delivered those.
 
 ## Watch events
 
-`watch` appends messages with `from: watch`, target = worktree slug or project
-name: new PR comments/reviews, review requests, and worktree status changes
-derived from GitHub (awaiting-review, addressing-comments, ready-for-merge,
-done).
+The watchman daemon appends messages with `from: watch`, target = worktree slug
+or project name: new PR comments/reviews, review requests, and worktree status
+changes derived from GitHub (awaiting-review, addressing-comments,
+ready-for-merge, done). It pushes them to the foreman tab like worker reports.

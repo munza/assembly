@@ -75,15 +75,27 @@ mailbox send <task-id> <message> [--status pending|in-progress|self-review|done|
 Direction is automatic: running inside the task's tab → report to foreman;
 anywhere else → prompt delivered into the worker's tab.
 
-## watch / status
+## status
 
 ```
-watch [--interval SECS] [--pr] [--project P]   # PR events into mailbox
-status                                          # overview
+status    # overview: worktrees, running tasks, unread mail
 ```
+
+## watchman (separate binary: `go run ./cmd/watchman`)
+
+```
+watchman [start] [--detached] [--interval SECS] [--pr] [--project P] [--foreman-pane ID]
+                  # foreground by default; --detached spawns a background instance
+watchman stop
+watchman status
+```
+
+Pushes unread worker/watch mailbox messages into the foreman tab
+(`herdr agent prompt`) and polls GitHub PRs. Auto-starts detached on any
+foreman command run from the foreman tab; exits when that tab closes.
 
 ## Status models
 
 - Task (worker-owned): pending → in-progress → self-review → done | blocked | failed
-- Worktree (foreman/watch-owned): planning → building → pr-open → awaiting-review
+- Worktree (foreman/watchman-owned): planning → building → pr-open → awaiting-review
   → addressing-comments → ready-for-merge → done (+ blocked/failed)

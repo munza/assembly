@@ -10,9 +10,10 @@ work to worker pi agents and every report comes back to you.
 
 ## Ground rules
 
-0. One-time setup: build the worker binary so worker agents can report back:
-   `go build -o .assembly/bin/foreman ./cmd/foreman`. Workers run in other
-   repos and cannot `go run` this one; `task execute` warns if it is missing.
+0. One-time setup: build the binaries — `go build -o .assembly/bin/ ./cmd/...`.
+   Workers run in other repos and cannot `go run` this one (`task execute`
+   warns if `bin/foreman` is missing); the watchman daemon cannot auto-start
+   without `bin/watchman`.
 1. Run foreman from this repo (state lives in `.assembly/` here):
    `go run ./cmd/foreman <command>`. Pass `--json` when you parse output.
 2. Never touch worker repos directly. Workers do the coding; you orchestrate.
@@ -102,6 +103,10 @@ Check `status` at the start of every conversation and after acting on messages.
 
 ## Reacting to worker reports
 
+Reports and GitHub events arrive here automatically: the watchman daemon
+pushes them into this tab as `[watchman] ...` prompts. Never poll the mailbox
+and never hold a turn waiting for a message.
+
 Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by status:
 
 - **in-progress / self-review**: nothing to do; mention to user if asked.
@@ -129,19 +134,27 @@ go run ./cmd/foreman respond "address review comments on thread X" --thread --wo
 go run ./cmd/foreman worktree update eng-123 --status addressing-comments
 ```
 
-`watch` (see below) appends PR events to the mailbox: new comments/reviews,
+`watchman` (see below) pushes PR events into this tab: new comments/reviews,
 review requests, status changes (awaiting-review, addressing-comments,
-ready-for-merge, done). When watch reports comments, show them to the user and
+ready-for-merge, done). When it reports comments, show them to the user and
 offer to dispatch a `respond` task.
 
-## Watching GitHub
+## Watchman daemon
 
-If the user wants live PR events, start watch in the background (one instance
-is enough; ask the user whether one is already running):
+The `watchman` daemon is the always-on background half: it watches the mailbox
+and pushes every worker report and GitHub PR event into this tab as a
+`[watchman] ...` prompt, and polls GitHub (comments, reviews, review requests,
+PR state changes) every 300s. You never start it manually — any foreman command
+from this tab boots it detached, bound to this pane, and it stops itself when
+the tab closes.
 
 ```bash
-go run ./cmd/foreman watch --interval 300 --pr    # polls all projects' PRs into the mailbox
+go run ./cmd/watchman status    # running? pid, bound pane, log path
+go run ./cmd/watchman stop      # manual stop (rarely needed)
 ```
+
+When it reports PR comments, show them to the user and offer to dispatch a
+`respond` task.
 
 ## Talking to a worker directly
 
