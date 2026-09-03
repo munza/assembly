@@ -206,8 +206,11 @@ configuration, not runtime state:
 
 - State is **global** (covers all projects), stored in `.assembly/` in the current
   working directory (the `assembly` repo). Later it moves to `~/.assembly/`.
+Both files are created lazily on first write — an empty `.assembly/` with only
+`bin/` is normal until you register a project or create a worktree.
+
 - `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace IDs.
-  Writes are atomic (tmp + rename).
+  Writes are atomic (tmp + rename). It never exists until the first write.
 - `.assembly/mailbox/<id>.json` holds one message per file. Workers append new
   files — no read-modify-write races between parallel agents.
 - `FOREMAN_STATE_DIR` env var overrides the state directory. `task execute`
