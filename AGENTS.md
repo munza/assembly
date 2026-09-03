@@ -116,6 +116,27 @@ foreman respond <note>
   --worktree
 ```
 
+## Mailbox protocol
+
+One command serves both directions. Sender is detected by comparing the shell's
+`HERDR_PANE_ID` with the task's stored pane ID:
+
+- **Worker side** (runs inside the task's tab): `foreman mailbox send <id> <msg>
+  --status ...` appends an unread message for the foreman and updates task status.
+- **Foreman side** (anywhere else): the message is recorded and also delivered
+  into the worker's tab via `herdr agent prompt`.
+- `foreman mailbox inbox` prints messages and marks the shown ones read.
+  `--follow` keeps watching the mailbox dir (fsnotify) for new messages.
+- Workers must have the `foreman` binary on PATH (install with
+  `go install ./cmd/foreman`); the task prompt tells them the exact command to run.
+
+## Worker prompt contract
+
+`task execute` spawns pi with a prompt that states: task ID, type, worktree slug,
+branch, note kind, the note itself, issue ref if any, and the exact mailbox command
+for reporting `in-progress|self-review|done|blocked|failed`. Keep this contract in
+sync with the foreman skill when it is written.
+
 ## Core flow
 
 1. `project add` registers a local repo (GitHub URL, local path).
@@ -153,10 +174,15 @@ foreman respond <note>
 
 - State is **global** (covers all projects), stored in `.assembly/` in the current
   working directory (the `assembly` repo). Later it moves to `~/.assembly/`.
-- Store: projects, worktrees, tasks, mailbox, and herdr IDs (workspace, tab, pane,
-  agent name) so mailbox/read always targets the right terminal.
-- Single JSON state file (or one file per entity) — decide during implementation, keep
-  it simple and human-readable.
+- `.assembly/state.json` holds projects, worktrees, tasks, and herdr IDs
+  (workspace, tab, pane, agent name). Writes are atomic (tmp + rename).
+- `.assembly/mailbox/<id>.json` holds one message per file. Workers append new
+  files — no read-modify-write races between parallel agents.
+- `FOREMAN_STATE_DIR` env var overrides the state directory. `task execute`
+  injects it into worker tabs via `herdr tab create --env`, because workers run
+  in other repos' worktree checkouts and cannot find `.assembly/` by cwd.
+- Known limitation: `state.json` updates (task status changes) from multiple
+  processes can still race. Accept for now; revisit if it bites.
 
 ## Implementation
 
