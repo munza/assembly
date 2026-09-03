@@ -75,9 +75,9 @@ func WorktreeCreate(workspaceID, branch, base string) (string, string, string, e
 	if id == "" {
 		return "", "", "", fmt.Errorf("herdr worktree create: no workspace_id in response")
 	}
-	path := str(res, "result", "workspace", "cwd")
+	path := str(res, "result", "worktree", "path")
 	if path == "" {
-		path = str(res, "result", "cwd")
+		path = str(res, "result", "root_pane", "cwd")
 	}
 	tabID := str(res, "result", "tab", "tab_id")
 	return id, path, tabID, nil
@@ -196,14 +196,14 @@ func TabCount(workspaceID string) int {
 	return len(list)
 }
 
-func WorktreeOpen(path, label string) (string, error) {
+func WorktreeOpen(path, label string) (string, string, error) {
 	res, err := RunJSON("worktree", "open", "--path", path, "--label", label)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	id := str(res, "result", "workspace", "workspace_id")
 	if id == "" {
-		return "", fmt.Errorf("herdr worktree open: no workspace_id in response")
+		return "", "", fmt.Errorf("herdr worktree open: no workspace_id in response")
 	}
-	return id, nil
+	return id, str(res, "result", "tab", "tab_id"), nil
 }
