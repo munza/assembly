@@ -42,7 +42,7 @@ watchman pushes each worker report back into this tab.
 5. **Resume from state**: `task list --worktree <slug>` — a done stage counts
    as done; the round number is the highest `r<N>` slug suffix + 1. Never
    re-run a stage that reported done unless a later FIX invalidated it.
-6. Reports live in `.assembly/output/<task-id>-<label>.md`; worker done
+6. Reports live in `.assembly/output/<issue-id|worktree-slug>-<label>.md`; worker done
    messages must mention the path. Test-gate workers report
    `VERDICT: pass|fail`; review workers `FINDINGS: none` or numbered findings.
 7. Never skip a gate, never merge or force-push yourself, never open or update

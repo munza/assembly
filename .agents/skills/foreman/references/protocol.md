@@ -20,7 +20,7 @@ Plus, depending on type:
   paths will be delivered into this tab as a new message; plan using them when
   it arrives."
 - plan/research/test: "When finished, write your full report to
-  `<state-dir>/output/<task-id>-<label>.md` ... then send ONE final mailbox
+  `<state-dir>/output/<issue-id|worktree-slug>-<label>.md` ... then send ONE final mailbox
   message that mentions that exact file path with --status done. Your tab
   closes automatically. `mailbox send` rejects a done from these types whose
   message lacks an `output/` path."

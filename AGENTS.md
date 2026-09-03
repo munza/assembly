@@ -171,7 +171,7 @@ questions as `blocked` mailbox messages (`QUESTION:` + `OPTION:` lines) — the
 central agent offers the question to the user (never auto-asks) and replies via
 `mailbox send`. `task execute` refuses to start a **build/test/fix** task while
 a plan task in the same worktree is pending/in-progress/self-review/blocked.
-Plan/research/test workers write their report to `<state-dir>/output/<task-id>-<label>.md`
+Plan/research/test workers write their report to `<state-dir>/output/<issue-id|worktree-slug>-<label>.md`
 (`.assembly/output/` in the assembly repo) and must mention that path in their
 done message — `mailbox send` rejects a done from these types without an
 `output/` path. Their tabs close automatically on

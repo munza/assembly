@@ -84,8 +84,11 @@ func newMailboxCmd() *cobra.Command {
 			}
 			from := store.SenderLabel(t.PaneID)
 			if from == "worker" && sendStatus == store.TaskDone && (t.Type == "plan" || t.Type == "research" || t.Type == "test") && !strings.Contains(args[1], "output/") {
-				expected := filepath.Join(store.Dir(), "output", t.ID+"-"+taskLabel(t)+".md")
-				return fmt.Errorf("done message must mention the report file path (expected `%s`); write the report, then resend including the path", expected)
+				if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
+					expected := filepath.Join(store.Dir(), "output", reportPrefix(wt)+"-"+taskLabel(t)+".md")
+					return fmt.Errorf("done message must mention the report file path (expected `%s`); write the report, then resend including the path", expected)
+				}
+				return fmt.Errorf("done message must mention the report file path under output/; write the report, then resend including the path")
 			}
 			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
 			if flagDryRun {

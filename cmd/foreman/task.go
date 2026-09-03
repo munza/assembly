@@ -424,7 +424,7 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin, stateDir string, resear
 		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet and do NOT poll the mailbox. End your turn and wait: their report paths will be delivered into this tab as a new message; plan using them when it arrives.\n", strings.Join(researchPending, ", "))
 	}
 	if t.Type == "plan" || t.Type == "research" || t.Type == "test" {
-		report := filepath.Join(stateDir, "output", t.ID+"-"+label+".md")
+		report := filepath.Join(stateDir, "output", reportPrefix(wt)+"-"+label+".md")
 		fmt.Fprintf(&b, "When finished, write your full report to `%s` (create the dir), then send ONE final mailbox message that mentions that exact file path with --status done. Your tab closes automatically.\n", report)
 	}
 	if t.Type == "test" {
@@ -467,6 +467,13 @@ func tabLabel(t *store.Task) string {
 		return t.Slug
 	}
 	return t.Type + "-" + t.ID
+}
+
+func reportPrefix(wt *store.Worktree) string {
+	if wt.IssueID != "" {
+		return strings.ToLower(wt.IssueID)
+	}
+	return wt.Slug
 }
 
 func agentName(label string) string {
