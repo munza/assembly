@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"assembly/internal/config"
+
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +38,7 @@ func newRootCmd() *cobra.Command {
 }
 
 func Execute() error {
+	config.LoadDotEnv()
 	return newRootCmd().Execute()
 }
 

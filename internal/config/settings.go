@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/joho/godotenv"
 )
 
 type Project struct {
@@ -70,6 +72,19 @@ func Save(st *Settings) error {
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
+// LoadDotEnv loads .assembly/.env into the process environment via godotenv.
+// Existing environment variables win; a missing file is ignored.
+func LoadDotEnv() {
+	path := filepath.Join(Dir(), ".env")
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	if err := godotenv.Load(path); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %s: %v\n", path, err)
+	}
+}
+
+// Expand resolves ${VAR} references from the environment (see LoadDotEnv).
 func Expand(s string) string {
 	return envPattern.ReplaceAllStringFunc(s, func(m string) string {
 		return os.Getenv(envPattern.FindStringSubmatch(m)[1])
