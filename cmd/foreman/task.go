@@ -89,6 +89,9 @@ var taskAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if flagDryRun {
+			return nil
+		}
 		output(t, func() {
 			fmt.Printf("created task %s (%s) in worktree %s — %s\n", t.ID, t.Type, t.Worktree, oneLine(t.Note))
 		})
