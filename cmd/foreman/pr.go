@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"assembly/internal/config"
-	"assembly/internal/github"
+	"assembly/internal/git"
 	"assembly/internal/linear"
 	"assembly/internal/store"
 
@@ -53,7 +53,7 @@ func newPRCmd() *cobra.Command {
 			if title == "" {
 				title = wt.Branch
 			}
-			if !github.Available() {
+			if !git.GhAvailable() {
 				return fmt.Errorf("gh not found in PATH")
 			}
 			if flagDryRun {
@@ -65,7 +65,7 @@ func newPRCmd() *cobra.Command {
 				fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
 				return nil
 			}
-			url, err := github.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
+			url, err := git.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
 			if err != nil {
 				return err
 			}
@@ -106,7 +106,7 @@ func newPRCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			v, err := github.PrView(p.Repo, prNum, getComments)
+			v, err := git.PrView(p.Repo, prNum, getComments)
 			if err != nil {
 				return err
 			}

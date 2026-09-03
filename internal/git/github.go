@@ -1,4 +1,4 @@
-package github
+package git
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ func run(dir string, args ...string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-func Available() bool {
+func GhAvailable() bool {
 	_, err := exec.LookPath("gh")
 	return err == nil
 }

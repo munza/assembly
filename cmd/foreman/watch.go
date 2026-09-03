@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"assembly/internal/config"
-	"assembly/internal/github"
+	"assembly/internal/git"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -38,7 +38,7 @@ func newWatchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !github.Available() {
+			if !git.GhAvailable() {
 				return fmt.Errorf("gh not found in PATH")
 			}
 			seen := loadSeenCommentCounts()
@@ -91,7 +91,7 @@ func pollOnce(st *config.Settings, s *store.State, seen *pollState, project stri
 				if wt.PR == 0 {
 					continue
 				}
-				v, err := github.PrView(p.Repo, wt.PR, true)
+				v, err := git.PrView(p.Repo, wt.PR, true)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 					continue
@@ -114,7 +114,7 @@ func pollOnce(st *config.Settings, s *store.State, seen *pollState, project stri
 					updateWorktreeFromPR(s, wt, v)
 				}
 			}
-			prList, err := github.ReviewRequested(p.Repo)
+			prList, err := git.ReviewRequested(p.Repo)
 			if err == nil {
 				for _, pr := range prList {
 					num, _ := pr["number"].(float64)
