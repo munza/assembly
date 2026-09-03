@@ -47,7 +47,11 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
     then on its done → PR (push) → CI CHECK → back to WATCH.
   - APPROVED (and `pr get` confirms CI green) → tell the user it is ready to
     merge. The user merges; never merge yourself.
-  - MERGED → pipeline done. Summarize and offer `worktree remove <slug>`.
+  - MERGED → pipeline done. Watchman has already closed any open task tabs
+    and marked unfinished tasks done. Run `worktree remove <slug>`
+    automatically (it also purges the worktree's mailbox messages and output
+    reports), then send the user the final summary with the progress view
+    fully filled in.
 
 ## Rules
 

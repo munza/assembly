@@ -456,6 +456,21 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 		}
 		delete(s.Tasks, t.ID)
 	}
+	if n, err := store.DeleteWorktreeMessages(wt.Slug); err == nil && n > 0 {
+		fmt.Printf("purged %d mailbox message(s)\n", n)
+	}
+	prefixes := []string{wt.Slug}
+	if wt.IssueID != "" {
+		prefixes = append(prefixes, strings.ToLower(wt.IssueID))
+	}
+	for _, p := range prefixes {
+		matches, _ := filepath.Glob(filepath.Join(store.Dir(), "output", p+"-*.md"))
+		for _, f := range matches {
+			if err := os.Remove(f); err == nil {
+				fmt.Printf("deleted report %s\n", filepath.Base(f))
+			}
+		}
+	}
 	if wt.WorkspaceID != "" {
 		if err := herdr.WorktreeRemove(wt.WorkspaceID, true); err != nil {
 			if !force {

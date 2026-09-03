@@ -80,7 +80,8 @@ foreman
     hold <worktree>          # --note <text> record a paused pipeline decision/step
     resume <worktree>        # show + clear a hold; the step to redo
     teardown <worktree>      # stop agents + clean up tabs, keep worktree data
-    remove <worktree>        # full delete of worktree + its tasks; --force if dirty
+    remove <worktree>        # full delete of worktree + tasks + its mailbox
+                             #  messages and output reports; --force if dirty
   task
     list                     # --status --type --worktree (filters)
     add                      # --type plan|research|build|test|fix|review|respond
@@ -222,7 +223,8 @@ with a fix loop) and `pipeline pr` (docs → lint → PR → CI → merge), or p
   `ready-for-merge` → `done` (plus `blocked`/`failed` when work stops).
 - The watchman daemon auto-derives worktree status: PR opened → `pr-open`; reviewer assigned →
   `awaiting-review`; new comment → `addressing-comments`; approved + CI green →
-  `ready-for-merge`; merged → `done`.
+  `ready-for-merge`; merged → `done` (and it closes the worktree's open task
+  tabs and marks unfinished tasks done).
 - `task --status` and `worktree --status` accept only their own level's values.
 
 ## Task model

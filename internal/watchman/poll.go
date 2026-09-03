@@ -8,6 +8,7 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/git"
+	"assembly/internal/herdr"
 	"assembly/internal/store"
 )
 
@@ -150,6 +151,17 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 		}
 		appendWorktreeEvent(wt, msg)
 		wt.Status = next
+		if state == "MERGED" {
+			for _, t := range store.WorktreeTasks(s, wt.Slug) {
+				if t.TabID != "" {
+					herdr.TabCloseDetached(t.TabID)
+					t.TabID, t.PaneID, t.AgentName = "", "", ""
+				}
+				if t.Status != store.TaskDone && t.Status != store.TaskFailed {
+					t.Status = store.TaskDone
+				}
+			}
+		}
 		return true
 	}
 	return false

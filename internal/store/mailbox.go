@@ -33,6 +33,10 @@ func AppendMessage(m *Message) error {
 	return os.Rename(tmp, name)
 }
 
+func messagePath(id string) string {
+	return filepath.Join(MailboxDir(), id+".json")
+}
+
 func LoadMessages() ([]*Message, error) {
 	entries, err := os.ReadDir(MailboxDir())
 	if os.IsNotExist(err) {
@@ -102,6 +106,23 @@ func MarkRead(ids ...string) error {
 		}
 	}
 	return nil
+}
+
+func DeleteWorktreeMessages(slug string) (int, error) {
+	ms, err := LoadMessages()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, m := range ms {
+		if m.Worktree != slug {
+			continue
+		}
+		if err := os.Remove(messagePath(m.ID)); err == nil {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func UnreadMessages() ([]*Message, error) {
