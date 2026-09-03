@@ -8,7 +8,7 @@ they would do, including herdr/gh calls).
 
 ```
 project list
-project add <path> [--name NAME]
+project add <path> [--name NAME] [--issue-prefix RE]
 project get <project>
 project remove <project> [--purge]
 ```
@@ -25,7 +25,7 @@ issue get <issue-id>        # Linear, e.g. ENG-123
 
 ```
 worktree list [--project P]
-worktree add <issue-id|slug> [--project P] [--base REF]
+worktree add <issue-id|slug> [--base REF]    # project by issue_prefix, else --project/cwd
 worktree get <worktree>
 worktree update <worktree> --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
 worktree teardown <worktree>     # close tabs, keep checkout

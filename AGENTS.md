@@ -186,10 +186,19 @@ configuration, not runtime state:
     "workspace": "myteam"
   },
   "projects": {
-    "igloo": { "path": "/Users/me/code/igloo", "repo": "me/igloo" }
+    "igloo": {
+      "path": "/Users/me/code/igloo",
+      "repo": "me/igloo",
+      "issue_prefix": "^(ENG|TAW)-"
+    }
   }
 }
 ```
+
+- `issue_prefix` is a regex matched against Linear issue IDs. One prefix or many:
+  `^ENG-` or `^(ENG|TAW)-`. `worktree add ENG-123` uses it to pick the project
+  without `--project`, and rejects an issue routed to a project whose prefix
+  does not match. Ambiguous matches (two projects match) require `--project`.
 
 - At startup every command loads `.assembly/.env` into the process environment
   (godotenv; existing variables win, missing file ignored). `${VAR}` in any value
@@ -198,8 +207,8 @@ configuration, not runtime state:
 - Secrets belong in `.assembly/.env` (gitignored); `settings.json` stays
   secret-free and references them. Workers resolve it too — `FOREMAN_STATE_DIR`
   points them at the same `.assembly/` dir.
-- Projects are settings (name → path + repo). Paths are absolute — `project add`
-  writes them that way.
+- Projects are settings (name → path + repo + optional `issue_prefix`). Paths are
+  absolute — `project add` writes them that way.
 - Runtime per-project data (herdr workspace ID) stays in `state.json`, not settings.
 
 ## State
