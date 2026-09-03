@@ -30,7 +30,9 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
     all comments and reviews (top-level, review bodies, and inline
     `path:line`); show them to the user verbatim. `pr get <worktree>
     --comments` re-prints them if needed. Then ONE `ask_user_question` with
-    two questions:
+    two questions, each quoting the original comment(s) in the question text
+    (author, file:line, full body verbatim) so the user decides with full
+    context:
     1. Dispatch a respond task for these comments? (as usual)
     2. Reply on the PR thread? Options: `Post "Addressed in <sha>" after
        the fix is pushed (Recommended)` / `No reply` — and the user may type
