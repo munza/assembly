@@ -95,7 +95,7 @@ foreman
   mailbox
     inbox                    # --unread to show only unread
     send <task-id> <message> # --status done|blocked|failed|in-progress|self-review
-  watch                      # --interval --issue --pr --project
+  watch                      # --interval --pr --project
   status                     # one-screen overview: worktrees + status, running
                              # tasks, unread mail — the central instance's home view
   help
@@ -170,17 +170,41 @@ sync with the foreman skill when it is written.
 - Every task belongs to a worktree; every worktree belongs to a project.
 - Task ID + slug must be unique and stable (used by mailbox, tabs, and labels).
 
+## Settings
+
+`.assembly/settings.json` (same dir as state; honors `FOREMAN_STATE_DIR`) holds
+configuration, not runtime state:
+
+```json
+{
+  "linear": {
+    "api_key": "${LINEAR_API_KEY}",
+    "workspace": "myteam"
+  },
+  "projects": {
+    "igloo": { "path": "/Users/me/code/igloo", "repo": "me/igloo" }
+  }
+}
+```
+
+- `${VAR}` in any value expands from the environment **at read time** (`settings.Expand`).
+  Files keep the raw reference, so saving never clobbers `${...}` entries.
+- Projects are settings (name → path + repo). Paths are absolute — `project add`
+  writes them that way.
+- Runtime per-project data (herdr workspace ID) stays in `state.json`, not settings.
+
 ## State
 
 - State is **global** (covers all projects), stored in `.assembly/` in the current
   working directory (the `assembly` repo). Later it moves to `~/.assembly/`.
-- `.assembly/state.json` holds projects, worktrees, tasks, and herdr IDs
-  (workspace, tab, pane, agent name). Writes are atomic (tmp + rename).
+- `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace IDs.
+  Writes are atomic (tmp + rename).
 - `.assembly/mailbox/<id>.json` holds one message per file. Workers append new
   files — no read-modify-write races between parallel agents.
 - `FOREMAN_STATE_DIR` env var overrides the state directory. `task execute`
   injects it into worker tabs via `herdr tab create --env`, because workers run
   in other repos' worktree checkouts and cannot find `.assembly/` by cwd.
+- Task IDs are derived (`t<max existing + 1>`); there is no counter in state.
 - Known limitation: `state.json` updates (task status changes) from multiple
   processes can still race. Accept for now; revisit if it bites.
 
@@ -190,6 +214,7 @@ sync with the foreman skill when it is written.
 - Layout:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
     project, issue, worktree, task, pr, mailbox, watch).
+  - `internal/settings/` — `.assembly/settings.json` load/save and `${ENV}` expansion.
   - `internal/herdr/`, `internal/linear/`, `internal/github/`, `internal/git/` —
     thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
