@@ -136,12 +136,21 @@ var projectRemoveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if len(store.ProjectWorktrees(s, p.Name)) > 0 {
-			return fmt.Errorf("project %s still has worktrees; remove them first or use --purge", p.Name)
+		wts := store.ProjectWorktrees(s, p.Name)
+		if len(wts) > 0 && !projectPurge {
+			return fmt.Errorf("project %s still has %d worktrees; remove them first or use --purge", p.Name, len(wts))
 		}
 		if flagDryRun {
 			fmt.Printf("would unregister project %s\n", p.Name)
+			for _, wt := range wts {
+				fmt.Printf("would delete worktree %s and %d tasks\n", wt.Slug, len(store.WorktreeTasks(s, wt.Slug)))
+			}
 			return nil
+		}
+		for _, wt := range wts {
+			if err := removeWorktree(s, wt, true); err != nil {
+				return err
+			}
 		}
 		delete(s.Projects, p.Name)
 		if err := store.Save(s); err != nil {
