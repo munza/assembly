@@ -62,6 +62,9 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    `VERDICT: pass|fail`; review workers `FINDINGS: none` or numbered findings.
 7. Never skip a gate, never merge or force-push yourself, never open or update
    a PR while any pipeline task in the worktree is unfinished.
+8. **Tab housekeeping**: only plan/research/test tabs close themselves on
+   done. When a build/review/fix/respond stage reports done, immediately
+   `task teardown <id>` to close its tab (record is kept).
 
 ## Reference
 
