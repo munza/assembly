@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -99,17 +100,31 @@ func PRReviewComments(repo string, number int) ([]map[string]any, error) {
 	return cs, nil
 }
 
-func PRComment(repo string, number int, body string) (string, error) {
+func PRComment(repo string, number int, body string) (string, int, error) {
 	out, err := run("", "pr", "comment", fmt.Sprintf("%d", number), "--repo", repo, "--body", body)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return firstLine(out), nil
+	url := firstLine(out)
+	id := 0
+	if i := strings.Index(url, "issuecomment-"); i >= 0 {
+		id, _ = strconv.Atoi(strings.TrimPrefix(url[i:], "issuecomment-"))
+	}
+	return url, id, nil
 }
 
-func PRReplyComment(repo string, number, commentID int, body string) error {
-	_, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", repo, number, commentID), "-f", "body="+body)
-	return err
+func PRReplyComment(repo string, number, commentID int, body string) (int, error) {
+	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", repo, number, commentID), "-f", "body="+body)
+	if err != nil {
+		return 0, err
+	}
+	var r struct {
+		ID int `json:"id"`
+	}
+	if err := json.Unmarshal(out, &r); err != nil {
+		return 0, err
+	}
+	return r.ID, nil
 }
 
 func ReviewRequested(repo string) ([]map[string]any, error) {

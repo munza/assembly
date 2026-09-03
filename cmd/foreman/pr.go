@@ -186,14 +186,23 @@ func newPRCmd() *cobra.Command {
 			return nil
 			}
 			if commentReplyID > 0 {
-				if err := git.PRReplyComment(p.Repo, prNum, commentReplyID, commentBody); err != nil {
+				id, err := git.PRReplyComment(p.Repo, prNum, commentReplyID, commentBody)
+				if err != nil {
 					return err
 				}
-				fmt.Printf("posted thread reply on PR #%d\n", prNum)
+				wt.SelfComments = append(wt.SelfComments, id)
+				if err := store.Save(s); err != nil {
+					return err
+				}
+				fmt.Printf("posted thread reply on PR #%d (comment %d)\n", prNum, id)
 				return nil
 			}
-			url, err := git.PRComment(p.Repo, prNum, commentBody)
+			url, id, err := git.PRComment(p.Repo, prNum, commentBody)
 			if err != nil {
+				return err
+			}
+			wt.SelfComments = append(wt.SelfComments, id)
+			if err := store.Save(s); err != nil {
 				return err
 			}
 			fmt.Printf("commented on PR #%d: %s\n", prNum, url)

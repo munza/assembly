@@ -37,6 +37,7 @@ type Worktree struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	RootTabID    string `json:"root_tab_id,omitempty"`
 	SeenComments int   `json:"seen_comments,omitempty"`
+	SelfComments []int `json:"self_comments,omitempty"`
 	Hold         string `json:"hold,omitempty"`
 	Status      string `json:"status"`
 	PR          int    `json:"pr,omitempty"`

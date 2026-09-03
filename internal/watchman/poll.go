@@ -65,15 +65,35 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 				}
 				count := 0
 				if comments, ok := v["comments"].([]any); ok {
-					count = len(comments)
+					for _, c := range comments {
+						cm, _ := c.(map[string]any)
+						if !isSelfComment(cm["databaseId"], wt.SelfComments) {
+							count++
+						}
+					}
 				}
 				if reviews, ok := v["reviews"].([]any); ok {
-					count += len(reviews)
+					for _, r := range reviews {
+						rm, _ := r.(map[string]any)
+						body, _ := rm["body"].(string)
+						if strings.TrimSpace(body) != "" {
+							count++
+						}
+					}
+				}
+				var inline []map[string]any
+				if ic, ierr := git.PRReviewComments(repo, wt.PR); ierr == nil {
+					for _, c := range ic {
+						if !isSelfComment(c["id"], wt.SelfComments) {
+							inline = append(inline, c)
+						}
+					}
+					count += len(inline)
 				}
 				if count > wt.SeenComments {
 					n := count - wt.SeenComments
 					body := fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, wt.PR)
-					if detail := commentDetail(v, repo, wt.PR); detail != "" {
+					if detail := commentDetail(v, inline); detail != "" {
 						body += "\n" + detail
 					}
 					appendWorktreeEvent(wt, body)
@@ -129,7 +149,20 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 	return false
 }
 
-func commentDetail(v map[string]any, repo string, prNum int) string {
+func isSelfComment(idAny any, self []int) bool {
+	id, ok := idAny.(float64)
+	if !ok || id == 0 {
+		return false
+	}
+	for _, s := range self {
+		if s == int(id) {
+			return true
+		}
+	}
+	return false
+}
+
+func commentDetail(v map[string]any, inline []map[string]any) string {
 	var lines []string
 	if comments, ok := v["comments"].([]any); ok {
 		for _, c := range comments {
@@ -151,7 +184,7 @@ func commentDetail(v map[string]any, repo string, prNum int) string {
 			}
 		}
 	}
-	if inline, err := git.PRReviewComments(repo, prNum); err == nil {
+	if inline != nil {
 		for _, ic := range inline {
 			author := userLogin(ic)
 			path, _ := ic["path"].(string)
