@@ -11,20 +11,31 @@ import (
 var flagJSON bool
 var flagDryRun bool
 
-var rootCmd = &cobra.Command{
-	Use:          "foreman",
-	Short:        "Orchestrate projects, worktrees, and pi agents through herdr",
-	SilenceUsage: true,
+func newRootCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:          "foreman",
+		Short:        "Orchestrate projects, worktrees, and pi agents through herdr",
+		SilenceUsage: true,
+	}
+	root.PersistentFlags().BoolVar(&flagJSON, "json", false, "machine-readable JSON output")
+	root.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "reads run normally; writes print what they would do")
+	root.CompletionOptions.HiddenDefaultCmd = true
+	root.AddCommand(
+		newProjectCmd(),
+		newIssueCmd(),
+		newWorktreeCmd(),
+		newTaskCmd(),
+		newPRCmd(),
+		newMailboxCmd(),
+		newWatchCmd(),
+		newStatusCmd(),
+	)
+	root.AddCommand(newAliasCmds()...)
+	return root
 }
 
 func Execute() error {
-	rootCmd.CompletionOptions.HiddenDefaultCmd = true
-	return rootCmd.Execute()
-}
-
-func init() {
-	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "machine-readable JSON output")
-	rootCmd.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "reads run normally; writes print what they would do")
+	return newRootCmd().Execute()
 }
 
 func output(v any, text func()) {

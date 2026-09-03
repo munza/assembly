@@ -13,21 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var taskCmd = &cobra.Command{
-	Use:   "task",
-	Short: "Manage tasks executed by pi agents in worktree tabs",
-}
-
-var (
-	taskSlug     string
-	taskType     string
-	taskNote     string
-	taskWorktree string
-	taskGeneral  bool
-	taskThread   bool
-	taskStatus   string
-	taskListFilt statusFilter
-)
+var taskTypes = []string{"plan", "research", "build", "review", "respond"}
 
 type statusFilter struct {
 	status   string
@@ -35,261 +21,270 @@ type statusFilter struct {
 	worktree string
 }
 
-var taskTypes = []string{"plan", "research", "build", "review", "respond"}
+func newTaskCmd() *cobra.Command {
+	var (
+		addSlug, addType, addNote, addWorktree string
+		addGeneral, addThread                  bool
+		listFilter                             statusFilter
+		updateStatus, updateNote               string
+	)
 
-func init() {
-	taskAddCmd.Flags().StringVar(&taskSlug, "slug", "", "short unique slug for the task")
-	taskAddCmd.Flags().StringVar(&taskType, "type", "", "task type: "+strings.Join(taskTypes, "|"))
-	taskAddCmd.Flags().StringVar(&taskNote, "note", "", "what the task should do")
-	taskAddCmd.Flags().StringVar(&taskWorktree, "worktree", "", "target worktree (defaults to the only worktree)")
-	taskAddCmd.Flags().BoolVar(&taskGeneral, "general", false, "note is a general note")
-	taskAddCmd.Flags().BoolVar(&taskThread, "thread", false, "note is tied to a review thread")
-	taskListCmd.Flags().StringVar(&taskListFilt.status, "status", "", "filter by status")
-	taskListCmd.Flags().StringVar(&taskListFilt.typ, "type", "", "filter by type")
-	taskListCmd.Flags().StringVar(&taskListFilt.worktree, "worktree", "", "filter by worktree")
-	taskUpdateCmd.Flags().StringVar(&taskStatus, "status", "", "new status: "+strings.Join(store.TaskStatuses, "|"))
-	taskUpdateCmd.Flags().StringVar(&taskNote, "note", "", "replace the task note")
-	taskCmd.AddCommand(taskListCmd, taskAddCmd, taskGetCmd, taskExecuteCmd, taskUpdateCmd, taskTeardownCmd, taskRemoveCmd)
-	rootCmd.AddCommand(taskCmd)
-}
-
-var taskListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List tasks",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		tasks := filteredTasks(s, taskListFilt)
-		output(tasks, func() {
-			if len(tasks) == 0 {
-				fmt.Println("no tasks")
-				return
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List tasks",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
 			}
-			for _, t := range tasks {
-				fmt.Printf("%s\t%s\t%s\t%s\t%s\n", t.ID, t.Worktree, t.Type, t.Status, oneLine(t.Note))
+			tasks := filteredTasks(s, listFilter)
+			output(tasks, func() {
+				if len(tasks) == 0 {
+					fmt.Println("no tasks")
+					return
+				}
+				for _, t := range tasks {
+					fmt.Printf("%s\t%s\t%s\t%s\t%s\n", t.ID, t.Worktree, t.Type, t.Status, oneLine(t.Note))
+				}
+			})
+			return nil
+		},
+	}
+	list.Flags().StringVar(&listFilter.status, "status", "", "filter by status")
+	list.Flags().StringVar(&listFilter.typ, "type", "", "filter by type")
+	list.Flags().StringVar(&listFilter.worktree, "worktree", "", "filter by worktree")
+
+	add := &cobra.Command{
+		Use:   "add",
+		Short: "Create a task",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			noteKind := ""
+			if addThread {
+				noteKind = "thread"
+			} else if addGeneral {
+				noteKind = "general"
 			}
-		})
-		return nil
-	},
-}
-
-var taskAddCmd = &cobra.Command{
-	Use:   "add",
-	Short: "Create a task",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		noteKind := ""
-		if taskThread {
-			noteKind = "thread"
-		} else if taskGeneral {
-			noteKind = "general"
-		}
-		t, err := addTask(taskType, taskNote, taskSlug, taskWorktree, noteKind)
-		if err != nil {
-			return err
-		}
-		if flagDryRun {
-			return nil
-		}
-		output(t, func() {
-			fmt.Printf("created task %s (%s) in worktree %s — %s\n", t.ID, t.Type, t.Worktree, oneLine(t.Note))
-		})
-		return nil
-	},
-}
-
-var taskGetCmd = &cobra.Command{
-	Use:   "get <task-id>",
-	Short: "Show one task",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		t, err := store.ResolveTask(s, args[0])
-		if err != nil {
-			return err
-		}
-		output(t, func() { printTask(t) })
-		return nil
-	},
-}
-
-var taskExecuteCmd = &cobra.Command{
-	Use:   "execute <task-id>",
-	Short: "Spawn a pi agent in a herdr tab and run the task",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		t, err := store.ResolveTask(s, args[0])
-		if err != nil {
-			return err
-		}
-		wt, err := store.ResolveWorktree(s, t.Worktree)
-		if err != nil {
-			return err
-		}
-		if wt.WorkspaceID == "" {
-			return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
-		}
-		if t.TabID != "" {
-			return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, t.TabID)
-		}
-		label := t.Slug
-		if label == "" {
-			label = t.Type + "-" + t.ID
-		}
-		name := agentName(label)
-		bin := foremanBin()
-		if bin == "foreman" {
-			fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; build it with: go build -o %s ./cmd/foreman\n", filepath.Join(store.Dir(), "bin", "foreman"))
-		}
-		prompt := buildPrompt(t, wt, bin)
-		stateDir, err := filepath.Abs(store.Dir())
-		if err != nil {
-			return err
-		}
-		env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
-		if flagDryRun {
-			fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
-			fmt.Println("would run: " + planRun("herdr", "agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"))
-			fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
-			fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
-			return nil
-		}
-		tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
-		if err != nil {
-			return err
-		}
-		if err := herdr.AgentStart(name, paneID); err != nil {
-			_ = herdr.TabClose(tabID)
-			return err
-		}
-		if err := herdr.AgentPrompt(name, prompt); err != nil {
-			return err
-		}
-		t.TabID, t.PaneID, t.AgentName = tabID, paneID, name
-		t.Status = store.TaskInProgress
-		if err := store.Save(s); err != nil {
-			return err
-		}
-		fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, tabID)
-		return nil
-	},
-}
-
-var taskUpdateCmd = &cobra.Command{
-	Use:   "update <task-id>",
-	Short: "Update task status or note",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if taskStatus == "" && taskNote == "" {
-			return fmt.Errorf("nothing to update; pass --status and/or --note")
-		}
-		if taskStatus != "" && !store.ValidTaskStatus(taskStatus) {
-			return fmt.Errorf("invalid status %q; valid: %s", taskStatus, strings.Join(store.TaskStatuses, "|"))
-		}
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		t, err := store.ResolveTask(s, args[0])
-		if err != nil {
-			return err
-		}
-		if flagDryRun {
-			if taskStatus != "" {
-				fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, taskStatus)
+			t, err := addTask(addType, addNote, addSlug, addWorktree, noteKind)
+			if err != nil {
+				return err
 			}
-			if taskNote != "" {
-				fmt.Printf("would set task %s note -> %s\n", t.ID, oneLine(taskNote))
+			if flagDryRun {
+				return nil
 			}
+			output(t, func() {
+				fmt.Printf("created task %s (%s) in worktree %s — %s\n", t.ID, t.Type, t.Worktree, oneLine(t.Note))
+			})
 			return nil
-		}
-		if taskStatus != "" {
-			t.Status = taskStatus
-		}
-		if taskNote != "" {
-			t.Note = taskNote
-		}
-		if err := store.Save(s); err != nil {
-			return err
-		}
-		printTask(t)
-		return nil
-	},
-}
+		},
+	}
+	add.Flags().StringVar(&addSlug, "slug", "", "short unique slug for the task")
+	add.Flags().StringVar(&addType, "type", "", "task type: "+strings.Join(taskTypes, "|"))
+	add.Flags().StringVar(&addNote, "note", "", "what the task should do")
+	add.Flags().StringVar(&addWorktree, "worktree", "", "target worktree (defaults to the only worktree)")
+	add.Flags().BoolVar(&addGeneral, "general", false, "note is a general note")
+	add.Flags().BoolVar(&addThread, "thread", false, "note is tied to a review thread")
 
-var taskTeardownCmd = &cobra.Command{
-	Use:   "teardown <task-id>",
-	Short: "Stop the task agent and close its tab; keep the task record",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		t, err := store.ResolveTask(s, args[0])
-		if err != nil {
-			return err
-		}
-		if t.TabID == "" {
-			fmt.Printf("task %s has no running agent\n", t.ID)
+	get := &cobra.Command{
+		Use:   "get <task-id>",
+		Short: "Show one task",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			t, err := store.ResolveTask(s, args[0])
+			if err != nil {
+				return err
+			}
+			output(t, func() { printTask(t) })
 			return nil
-		}
-		if flagDryRun {
-			fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
-			return nil
-		}
-		if err := herdr.TabClose(t.TabID); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-		}
-		t.TabID, t.PaneID, t.AgentName = "", "", ""
-		if err := store.Save(s); err != nil {
-			return err
-		}
-		fmt.Printf("task %s agent stopped\n", t.ID)
-		return nil
-	},
-}
+		},
+	}
 
-var taskRemoveCmd = &cobra.Command{
-	Use:   "remove <task-id>",
-	Short: "Delete a task and close its tab if running",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		t, err := store.ResolveTask(s, args[0])
-		if err != nil {
-			return err
-		}
-		if flagDryRun {
-			fmt.Printf("would remove task %s\n", t.ID)
+	execute := &cobra.Command{
+		Use:   "execute <task-id>",
+		Short: "Spawn a pi agent in a herdr tab and run the task",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			t, err := store.ResolveTask(s, args[0])
+			if err != nil {
+				return err
+			}
+			wt, err := store.ResolveWorktree(s, t.Worktree)
+			if err != nil {
+				return err
+			}
+			if wt.WorkspaceID == "" {
+				return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
+			}
 			if t.TabID != "" {
-				fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
+				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, t.TabID)
 			}
+			label := t.Slug
+			if label == "" {
+				label = t.Type + "-" + t.ID
+			}
+			name := agentName(label)
+			bin := foremanBin()
+			if bin == "foreman" {
+				fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; build it with: go build -o %s ./cmd/foreman\n", filepath.Join(store.Dir(), "bin", "foreman"))
+			}
+			prompt := buildPrompt(t, wt, bin)
+			stateDir, err := filepath.Abs(store.Dir())
+			if err != nil {
+				return err
+			}
+			env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
+			if flagDryRun {
+				fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
+				fmt.Println("would run: " + planRun("herdr", "agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"))
+				fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
+				fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
+				return nil
+			}
+			tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+			if err != nil {
+				return err
+			}
+			if err := herdr.AgentStart(name, paneID); err != nil {
+				_ = herdr.TabClose(tabID)
+				return err
+			}
+			if err := herdr.AgentPrompt(name, prompt); err != nil {
+				return err
+			}
+			t.TabID, t.PaneID, t.AgentName = tabID, paneID, name
+			t.Status = store.TaskInProgress
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, tabID)
 			return nil
-		}
-		if t.TabID != "" {
+		},
+	}
+
+	update := &cobra.Command{
+		Use:   "update <task-id>",
+		Short: "Update task status or note",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if updateStatus == "" && updateNote == "" {
+				return fmt.Errorf("nothing to update; pass --status and/or --note")
+			}
+			if updateStatus != "" && !store.ValidTaskStatus(updateStatus) {
+				return fmt.Errorf("invalid status %q; valid: %s", updateStatus, strings.Join(store.TaskStatuses, "|"))
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			t, err := store.ResolveTask(s, args[0])
+			if err != nil {
+				return err
+			}
+			if flagDryRun {
+				if updateStatus != "" {
+					fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, updateStatus)
+				}
+				if updateNote != "" {
+					fmt.Printf("would set task %s note -> %s\n", t.ID, oneLine(updateNote))
+				}
+				return nil
+			}
+			if updateStatus != "" {
+				t.Status = updateStatus
+			}
+			if updateNote != "" {
+				t.Note = updateNote
+			}
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			printTask(t)
+			return nil
+		},
+	}
+	update.Flags().StringVar(&updateStatus, "status", "", "new status: "+strings.Join(store.TaskStatuses, "|"))
+	update.Flags().StringVar(&updateNote, "note", "", "replace the task note")
+
+	teardown := &cobra.Command{
+		Use:   "teardown <task-id>",
+		Short: "Stop the task agent and close its tab; keep the task record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			t, err := store.ResolveTask(s, args[0])
+			if err != nil {
+				return err
+			}
+			if t.TabID == "" {
+				fmt.Printf("task %s has no running agent\n", t.ID)
+				return nil
+			}
+			if flagDryRun {
+				fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
+				return nil
+			}
 			if err := herdr.TabClose(t.TabID); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
-		}
-		delete(s.Tasks, t.ID)
-		if err := store.Save(s); err != nil {
-			return err
-		}
-		fmt.Printf("removed task %s\n", t.ID)
-		return nil
-	},
+			t.TabID, t.PaneID, t.AgentName = "", "", ""
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("task %s agent stopped\n", t.ID)
+			return nil
+		},
+	}
+
+	remove := &cobra.Command{
+		Use:   "remove <task-id>",
+		Short: "Delete a task and close its tab if running",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			t, err := store.ResolveTask(s, args[0])
+			if err != nil {
+				return err
+			}
+			if flagDryRun {
+				fmt.Printf("would remove task %s\n", t.ID)
+				if t.TabID != "" {
+					fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
+				}
+				return nil
+			}
+			if t.TabID != "" {
+				if err := herdr.TabClose(t.TabID); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				}
+			}
+			delete(s.Tasks, t.ID)
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("removed task %s\n", t.ID)
+			return nil
+		},
+	}
+
+	cmd := &cobra.Command{
+		Use:   "task",
+		Short: "Manage tasks executed by pi agents in worktree tabs",
+	}
+	cmd.AddCommand(list, add, get, execute, update, teardown, remove)
+	return cmd
 }
 
 func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error) {

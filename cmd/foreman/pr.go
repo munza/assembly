@@ -5,31 +5,123 @@ import (
 	"strconv"
 	"strings"
 
+	"assembly/internal/config"
 	"assembly/internal/github"
 	"assembly/internal/linear"
-	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
 )
 
-var prCmd = &cobra.Command{
-	Use:   "pr",
-	Short: "Create and inspect GitHub pull requests",
-}
+func newPRCmd() *cobra.Command {
+	var (
+		createTitle, createBase string
+		getComments             bool
+	)
 
-var (
-	prTitle    string
-	prBase     string
-	prComments bool
-)
+	create := &cobra.Command{
+		Use:   "create <worktree>",
+		Short: "Open a PR for a worktree's branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			wt, err := store.ResolveWorktree(s, args[0])
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			p, err := resolveProjectView(s, st, wt.Project)
+			if err != nil {
+				return err
+			}
+			title := createTitle
+			body := ""
+			if title == "" && wt.IssueID != "" {
+				if issue, err := linear.GetIssue(wt.IssueID, config.LinearAPIKey()); err == nil {
+					title = issue.Title
+					body = fmt.Sprintf("[%s](%s)\n\n%s", issue.Identifier, issue.URL, issue.Description)
+				} else {
+					fmt.Printf("warning: could not fetch issue %s: %v\n", wt.IssueID, err)
+				}
+			}
+			if title == "" {
+				title = wt.Branch
+			}
+			if !github.Available() {
+				return fmt.Errorf("gh not found in PATH")
+			}
+			if flagDryRun {
+				ghArgs := []string{"gh", "pr", "create", "--title", title, "--head", wt.Branch, "--repo", p.Repo}
+				if createBase != "" {
+					ghArgs = append(ghArgs, "--base", createBase)
+				}
+				fmt.Println("would run: " + quoteAll(ghArgs...))
+				fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
+				return nil
+			}
+			url, err := github.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
+			if err != nil {
+				return err
+			}
+			prNum := 0
+			if i := strings.LastIndex(url, "/"); i >= 0 {
+				prNum, _ = strconv.Atoi(url[i+1:])
+			}
+			wt.PR = prNum
+			wt.Status = store.WtPROpen
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("created PR %s for worktree %s\n", url, wt.Slug)
+			return nil
+		},
+	}
+	create.Flags().StringVar(&createTitle, "title", "", "PR title (defaults to Linear issue title, else branch name)")
+	create.Flags().StringVar(&createBase, "base", "", "base branch (defaults to repo default)")
 
-func init() {
-	prCreateCmd.Flags().StringVar(&prTitle, "title", "", "PR title (defaults to Linear issue title, else branch name)")
-	prCreateCmd.Flags().StringVar(&prBase, "base", "", "base branch (defaults to repo default)")
-	prGetCmd.Flags().BoolVar(&prComments, "comments", false, "include comments and reviews")
-	prCmd.AddCommand(prCreateCmd, prGetCmd)
-	rootCmd.AddCommand(prCmd)
+	get := &cobra.Command{
+		Use:   "get <pr|worktree>",
+		Short: "Show a PR (by number or worktree)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			wt, prNum, err := resolvePR(s, args[0])
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			p, err := resolveProjectView(s, st, wt.Project)
+			if err != nil {
+				return err
+			}
+			v, err := github.PrView(p.Repo, prNum, getComments)
+			if err != nil {
+				return err
+			}
+			output(v, func() { printPR(v) })
+			return nil
+		},
+	}
+	get.Flags().BoolVar(&getComments, "comments", false, "include comments and reviews")
+
+	cmd := &cobra.Command{
+		Use:   "pr",
+		Short: "Create and inspect GitHub pull requests",
+	}
+	cmd.AddCommand(create, get)
+	return cmd
 }
 
 func quoteAll(args ...string) string {
@@ -38,102 +130,6 @@ func quoteAll(args ...string) string {
 		out[i] = quoteIfNeeded(a)
 	}
 	return strings.Join(out, " ")
-}
-
-var prCreateCmd = &cobra.Command{
-	Use:   "create <worktree>",
-	Short: "Open a PR for a worktree's branch",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		wt, err := store.ResolveWorktree(s, args[0])
-		if err != nil {
-			return err
-		}
-		st, err := settings.Load()
-		if err != nil {
-			return err
-		}
-		p, err := resolveProjectView(s, st, wt.Project)
-		if err != nil {
-			return err
-		}
-		title := prTitle
-		body := ""
-		if title == "" && wt.IssueID != "" {
-			if issue, err := linear.GetIssue(wt.IssueID, linearKey()); err == nil {
-				title = issue.Title
-				body = fmt.Sprintf("[%s](%s)\n\n%s", issue.Identifier, issue.URL, issue.Description)
-			} else {
-				fmt.Printf("warning: could not fetch issue %s: %v\n", wt.IssueID, err)
-			}
-		}
-		if title == "" {
-			title = wt.Branch
-		}
-		if !github.Available() {
-			return fmt.Errorf("gh not found in PATH")
-		}
-		if flagDryRun {
-			ghArgs := append([]string{"gh", "pr", "create", "--title", title, "--head", wt.Branch, "--repo", p.Repo}, func() []string {
-				if prBase != "" {
-					return []string{"--base", prBase}
-				}
-				return nil
-			}()...)
-			fmt.Println("would run: " + quoteAll(ghArgs...))
-			fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
-			return nil
-		}
-		url, err := github.PrCreate(wt.Path, p.Repo, title, body, prBase, wt.Branch)
-		if err != nil {
-			return err
-		}
-		prNum := 0
-		if i := strings.LastIndex(url, "/"); i >= 0 {
-			prNum, _ = strconv.Atoi(url[i+1:])
-		}
-		wt.PR = prNum
-		wt.Status = store.WtPROpen
-		if err := store.Save(s); err != nil {
-			return err
-		}
-		fmt.Printf("created PR %s for worktree %s\n", url, wt.Slug)
-		return nil
-	},
-}
-
-var prGetCmd = &cobra.Command{
-	Use:   "get <pr|worktree>",
-	Short: "Show a PR (by number or worktree)",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		wt, prNum, err := resolvePR(s, args[0])
-		if err != nil {
-			return err
-		}
-		st, err := settings.Load()
-		if err != nil {
-			return err
-		}
-		p, err := resolveProjectView(s, st, wt.Project)
-		if err != nil {
-			return err
-		}
-		v, err := github.PrView(p.Repo, prNum, prComments)
-		if err != nil {
-			return err
-		}
-		output(v, func() { printPR(v) })
-		return nil
-	},
 }
 
 func resolvePR(s *store.State, ref string) (*store.Worktree, int, error) {

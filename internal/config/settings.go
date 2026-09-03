@@ -1,4 +1,4 @@
-package settings
+package config
 
 import (
 	"encoding/json"
@@ -74,4 +74,16 @@ func Expand(s string) string {
 	return envPattern.ReplaceAllStringFunc(s, func(m string) string {
 		return os.Getenv(envPattern.FindStringSubmatch(m)[1])
 	})
+}
+
+func LinearAPIKey() string {
+	st, err := Load()
+	if err != nil || st == nil {
+		return os.Getenv("LINEAR_API_KEY")
+	}
+	key := Expand(st.Linear.APIKey)
+	if key == "" {
+		key = os.Getenv("LINEAR_API_KEY")
+	}
+	return key
 }

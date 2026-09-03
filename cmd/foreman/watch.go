@@ -5,62 +5,61 @@ import (
 	"os"
 	"time"
 
+	"assembly/internal/config"
 	"assembly/internal/github"
-	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
 )
 
-var (
-	watchInterval int
-	watchPRs      bool
-	watchProject  string
-)
-
-var watchCmd = &cobra.Command{
-	Use:   "watch",
-	Short: "Poll GitHub and report PR events into the mailbox",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if watchInterval <= 0 {
-			return fmt.Errorf("--interval must be positive")
-		}
-		s, err := store.Load()
-		if err != nil {
-			return err
-		}
-		st, err := settings.Load()
-		if err != nil {
-			return err
-		}
-		if !github.Available() {
-			return fmt.Errorf("gh not found in PATH")
-		}
-		seen := loadSeenCommentCounts(s)
-		for {
-			n, err := pollOnce(st, s, seen)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-			} else if n > 0 && !flagJSON {
-				fmt.Printf("%s: %d new event(s) recorded\n", time.Now().Format(time.Kitchen), n)
-			}
-			time.Sleep(time.Duration(watchInterval) * time.Second)
-		}
-	},
-}
-
-func init() {
-	watchCmd.Flags().IntVar(&watchInterval, "interval", 300, "poll interval in seconds")
-	watchCmd.Flags().BoolVar(&watchPRs, "pr", true, "watch PRs (comments, reviews, review requests)")
-	watchCmd.Flags().StringVar(&watchProject, "project", "", "limit to one project")
-	rootCmd.AddCommand(watchCmd)
-}
-
 type pollState struct {
 	comments map[string]int
 }
 
-func loadSeenCommentCounts(s *store.State) *pollState {
+func newWatchCmd() *cobra.Command {
+	var (
+		interval int
+		prs      bool
+		project  string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "watch",
+		Short: "Poll GitHub and report PR events into the mailbox",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if interval <= 0 {
+				return fmt.Errorf("--interval must be positive")
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if !github.Available() {
+				return fmt.Errorf("gh not found in PATH")
+			}
+			seen := loadSeenCommentCounts()
+			for {
+				n, err := pollOnce(st, s, seen, project, prs)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				} else if n > 0 && !flagJSON {
+					fmt.Printf("%s: %d new event(s) recorded\n", time.Now().Format(time.Kitchen), n)
+				}
+				time.Sleep(time.Duration(interval) * time.Second)
+			}
+		},
+	}
+	cmd.Flags().IntVar(&interval, "interval", 300, "poll interval in seconds")
+	cmd.Flags().BoolVar(&prs, "pr", true, "watch PRs (comments, reviews, review requests)")
+	cmd.Flags().StringVar(&project, "project", "", "limit to one project")
+	return cmd
+}
+
+func loadSeenCommentCounts() *pollState {
 	ps := &pollState{comments: map[string]int{}}
 	ms, err := store.LoadMessages()
 	if err != nil {
@@ -74,11 +73,11 @@ func loadSeenCommentCounts(s *store.State) *pollState {
 	return ps
 }
 
-func pollOnce(st *settings.Settings, s *store.State, seen *pollState) (int, error) {
+func pollOnce(st *config.Settings, s *store.State, seen *pollState, project string, prs bool) (int, error) {
 	events := 0
 	var projects []*projView
-	if watchProject != "" {
-		p, err := resolveProjectView(s, st, watchProject)
+	if project != "" {
+		p, err := resolveProjectView(s, st, project)
 		if err != nil {
 			return 0, err
 		}
@@ -87,44 +86,45 @@ func pollOnce(st *settings.Settings, s *store.State, seen *pollState) (int, erro
 		projects = sortedProjectViews(s, st)
 	}
 	for _, p := range projects {
-		wts := store.ProjectWorktrees(s, p.Name)
-		for _, wt := range wts {
-			if wt.PR == 0 {
-				continue
-			}
-			v, err := github.PrView(p.Repo, wt.PR, true)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-				continue
-			}
-			key := fmt.Sprintf("%s#%d", wt.Slug, wt.PR)
-			count := 0
-			if comments, ok := v["comments"].([]any); ok {
-				count = len(comments)
-			}
-			if reviews, ok := v["reviews"].([]any); ok {
-				count += len(reviews)
-			}
-			if count > seen.comments[key] {
-				if n := count - seen.comments[key]; n > 0 {
-					body := fmt.Sprintf("%d new comment(s)/review(s) on PR #%d (%s)", n, wt.PR, key)
-					appendWatchEvent(wt.Slug, body)
-					events += n
+		if prs {
+			for _, wt := range store.ProjectWorktrees(s, p.Name) {
+				if wt.PR == 0 {
+					continue
 				}
-				seen.comments[key] = count
-				updateWorktreeFromPR(s, wt, v)
+				v, err := github.PrView(p.Repo, wt.PR, true)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+					continue
+				}
+				key := fmt.Sprintf("%s#%d", wt.Slug, wt.PR)
+				count := 0
+				if comments, ok := v["comments"].([]any); ok {
+					count = len(comments)
+				}
+				if reviews, ok := v["reviews"].([]any); ok {
+					count += len(reviews)
+				}
+				if count > seen.comments[key] {
+					if n := count - seen.comments[key]; n > 0 {
+						body := fmt.Sprintf("%d new comment(s)/review(s) on PR #%d (%s)", n, wt.PR, key)
+						appendWatchEvent(wt.Slug, body)
+						events += n
+					}
+					seen.comments[key] = count
+					updateWorktreeFromPR(s, wt, v)
+				}
 			}
-		}
-		prs, err := github.ReviewRequested(p.Repo)
-		if err == nil {
-			for _, pr := range prs {
-				num, _ := pr["number"].(float64)
-				key := fmt.Sprintf("%s#%d-rr", p.Name, int(num))
-				if seen.comments[key] == 0 {
-					title, _ := pr["title"].(string)
-					appendWatchEvent(p.Name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
-					seen.comments[key] = 1
-					events++
+			prList, err := github.ReviewRequested(p.Repo)
+			if err == nil {
+				for _, pr := range prList {
+					num, _ := pr["number"].(float64)
+					key := fmt.Sprintf("%s#%d-rr", p.Name, int(num))
+					if seen.comments[key] == 0 {
+						title, _ := pr["title"].(string)
+						appendWatchEvent(p.Name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
+						seen.comments[key] = 1
+						events++
+					}
 				}
 			}
 		}
