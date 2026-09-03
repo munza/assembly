@@ -83,6 +83,11 @@ func ResolveProject(s *State, ref string) (*Project, error) {
 			return p, nil
 		}
 	}
+	for _, p := range s.Projects {
+		if p.Repo != "" && filepath.Base(p.Repo) == ref {
+			return p, nil
+		}
+	}
 	return nil, fmt.Errorf("project %q not found", ref)
 }
 
