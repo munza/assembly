@@ -99,6 +99,19 @@ func PRReviewComments(repo string, number int) ([]map[string]any, error) {
 	return cs, nil
 }
 
+func PRComment(repo string, number int, body string) (string, error) {
+	out, err := run("", "pr", "comment", fmt.Sprintf("%d", number), "--repo", repo, "--body", body)
+	if err != nil {
+		return "", err
+	}
+	return firstLine(out), nil
+}
+
+func PRReplyComment(repo string, number, commentID int, body string) error {
+	_, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", repo, number, commentID), "-f", "body="+body)
+	return err
+}
+
 func ReviewRequested(repo string) ([]map[string]any, error) {
 	out, err := run("", "pr", "list", "--repo", repo, "--search", "review-requested:@me", "--json", "number,title,author,url")
 	if err != nil {

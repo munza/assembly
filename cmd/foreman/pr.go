@@ -151,11 +151,63 @@ func newPRCmd() *cobra.Command {
 	}
 	get.Flags().BoolVar(&getComments, "comments", false, "include comments and reviews")
 
+	var commentBody string
+	var commentReplyID int
+	commentCmd := &cobra.Command{
+		Use:   "comment <pr|worktree>",
+		Short: "Post a comment on a PR (optionally as a thread reply)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(commentBody) == "" {
+				return fmt.Errorf("--body is required")
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			wt, prNum, err := resolvePR(s, args[0])
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			p, err := resolveProjectView(s, st, wt.Project)
+			if err != nil {
+				return err
+			}
+			if flagDryRun {
+				if commentReplyID > 0 {
+				fmt.Printf("would run: gh api repos/%s/pulls/%d/comments/%d/replies (body: %s)\n", p.Repo, prNum, commentReplyID, oneLine(commentBody))
+				} else {
+				fmt.Printf("would run: gh pr comment %d --repo %s (body: %s)\n", prNum, p.Repo, oneLine(commentBody))
+			}
+			return nil
+			}
+			if commentReplyID > 0 {
+				if err := git.PRReplyComment(p.Repo, prNum, commentReplyID, commentBody); err != nil {
+					return err
+				}
+				fmt.Printf("posted thread reply on PR #%d\n", prNum)
+				return nil
+			}
+			url, err := git.PRComment(p.Repo, prNum, commentBody)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("commented on PR #%d: %s\n", prNum, url)
+			return nil
+		},
+	}
+	commentCmd.Flags().StringVar(&commentBody, "body", "", "comment text")
+	commentCmd.Flags().IntVar(&commentReplyID, "reply", 0, "inline comment ID to reply to (thread reply)")
+
 	cmd := &cobra.Command{
 		Use:   "pr",
 		Short: "Create and inspect GitHub pull requests",
 	}
-	cmd.AddCommand(create, get)
+	cmd.AddCommand(create, get, commentCmd)
 	return cmd
 }
 

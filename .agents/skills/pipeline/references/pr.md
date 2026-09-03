@@ -29,8 +29,19 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
   - comment/CHANGES_REQUESTED event → the event body carries the full text of
     all comments and reviews (top-level, review bodies, and inline
     `path:line`); show them to the user verbatim. `pr get <worktree>
-    --comments` re-prints them if needed. **Show the user and ask** before
-    dispatching. Approved → `respond "Address review comments: <threads/summary>" --thread --worktree <slug> --slug respond-r<N>`,
+    --comments` re-prints them if needed. Then ONE `ask_user_question` with
+    two questions:
+    1. Dispatch a respond task for these comments? (as usual)
+    2. Reply on the PR thread? Options: `Post "Addressed in <sha>" after
+       the fix is pushed (Recommended)` / `No reply` — and the user may type
+       their own message instead of picking (posted as the reply). If a
+       respond task was dispatched, post the reply after `pr create` pushes
+       the fix (include the commit sha); if not, post an immediate reply or
+       none per the user's choice. Post via
+       `pr comment <worktree> --body "<text>" --reply <inline-comment-id>`
+       (thread reply; omit `--reply` for a top-level comment; get ids from
+       `pr get <worktree> --comments --json`).
+    Approved → `respond "Address review comments: <threads/summary>" --thread --worktree <slug> --slug respond-r<N>`,
     then on its done → PR (push) → CI CHECK → back to WATCH.
   - APPROVED (and `pr get` confirms CI green) → tell the user it is ready to
     merge. The user merges; never merge yourself.

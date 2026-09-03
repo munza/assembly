@@ -94,6 +94,8 @@ foreman
                              #  (idempotent: reuses an existing PR for the branch;
                              #  title defaults to Linear issue title, base to repo
                              #  default; body follows the repo PR template)
+    comment <pr|worktree>    # --body <text> [--reply <comment-id>] post a comment
+                             #  or a threaded reply to an inline review comment
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread
