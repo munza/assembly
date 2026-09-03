@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"assembly/internal/herdr"
@@ -141,14 +142,19 @@ var taskExecuteCmd = &cobra.Command{
 		}
 		name := agentName(label)
 		prompt := buildPrompt(t, wt)
+		stateDir, err := filepath.Abs(store.Dir())
+		if err != nil {
+			return err
+		}
+		env := map[string]string{"FOREMAN_STATE_DIR": stateDir}
 		if flagDryRun {
-			fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus"))
+			fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir))
 			fmt.Println("would run: " + planRun("herdr", "agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"))
 			fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
 			fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
 			return nil
 		}
-		tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label)
+		tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
 		if err != nil {
 			return err
 		}

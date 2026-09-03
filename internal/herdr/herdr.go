@@ -95,10 +95,13 @@ func WorktreeRemove(id string, force bool) error {
 	return err
 }
 
-func TabCreate(workspaceID, cwd, label string) (string, string, error) {
+func TabCreate(workspaceID, cwd, label string, env map[string]string) (string, string, error) {
 	args := []string{"tab", "create", "--workspace", workspaceID, "--label", label, "--no-focus"}
 	if cwd != "" {
 		args = append(args, "--cwd", cwd)
+	}
+	for k, v := range env {
+		args = append(args, "--env", k+"="+v)
 	}
 	res, err := RunJSON(args...)
 	if err != nil {

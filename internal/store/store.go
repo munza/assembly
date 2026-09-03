@@ -12,9 +12,21 @@ import (
 
 const DirName = ".assembly"
 const FileName = "state.json"
+const MailboxDirName = "mailbox"
+
+func Dir() string {
+	if d := os.Getenv("FOREMAN_STATE_DIR"); d != "" {
+		return d
+	}
+	return DirName
+}
 
 func Path() string {
-	return filepath.Join(DirName, FileName)
+	return filepath.Join(Dir(), FileName)
+}
+
+func MailboxDir() string {
+	return filepath.Join(Dir(), MailboxDirName)
 }
 
 func Empty() *State {
@@ -54,24 +66,24 @@ func Load() (*State, error) {
 }
 
 func Save(s *State) error {
-	if err := os.MkdirAll(DirName, 0o755); err != nil {
+	if err := os.MkdirAll(Dir(), 0o755); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path(), append(b, '\n'), 0o644)
+	tmp := Path() + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, Path())
 }
 
 func NewTaskID(s *State) string {
 	id := fmt.Sprintf("t%d", s.NextTask)
 	s.NextTask++
 	return id
-}
-
-func NewMessageID(s *State) string {
-	return fmt.Sprintf("m%d", len(s.Mailbox)+1)
 }
 
 func ResolveProject(s *State, ref string) (*Project, error) {
@@ -147,14 +159,12 @@ func ProjectWorktrees(s *State, name string) []*Worktree {
 	return wts
 }
 
-func UnreadCount(s *State) int {
-	n := 0
-	for _, m := range s.Mailbox {
-		if !m.Read {
-			n++
-		}
+func UnreadCount() int {
+	ms, err := UnreadMessages()
+	if err != nil {
+		return 0
 	}
-	return n
+	return len(ms)
 }
 
 func ValidTaskStatus(v string) bool {

@@ -69,6 +69,5 @@ type State struct {
 	Projects  map[string]*Project  `json:"projects"`
 	Worktrees map[string]*Worktree `json:"worktrees"`
 	Tasks     map[string]*Task     `json:"tasks"`
-	Mailbox   []*Message           `json:"mailbox"`
 	NextTask  int                  `json:"next_task"`
 }

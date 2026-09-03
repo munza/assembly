@@ -116,7 +116,7 @@ var worktreeAddCmd = &cobra.Command{
 			id, err := herdr.WorkspaceCreate(p.Path, p.Name)
 			if err != nil {
 				return err
-		}
+			}
 			p.WorkspaceID = id
 			if err := store.Save(s); err != nil {
 				return err
