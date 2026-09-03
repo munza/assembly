@@ -26,8 +26,10 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
   commits reset the rollup to pending — wait for watchman's next PR event or
   re-check before calling it red.
 - **WATCH** — passive. Watchman pushes PR events into this tab; never poll.
-  - comment/CHANGES_REQUESTED event → fetch content with
-    `pr get <worktree> --comments`, **show the user and ask** before
+  - comment/CHANGES_REQUESTED event → the event body carries the full text of
+    all comments and reviews (top-level, review bodies, and inline
+    `path:line`); show them to the user verbatim. `pr get <worktree>
+    --comments` re-prints them if needed. **Show the user and ask** before
     dispatching. Approved → `respond "Address review comments: <threads/summary>" --thread --worktree <slug> --slug respond-r<N>`,
     then on its done → PR (push) → CI CHECK → back to WATCH.
   - APPROVED (and `pr get` confirms CI green) → tell the user it is ready to
