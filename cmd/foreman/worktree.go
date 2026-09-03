@@ -263,6 +263,68 @@ func newWorktreeCmd() *cobra.Command {
 	}
 	update.Flags().StringVar(&updateStatus, "status", "", "new status: "+strings.Join(store.WorktreeStatuses, "|"))
 
+	var holdNote string
+	hold := &cobra.Command{
+		Use:   "hold <worktree> --note <text>",
+		Short: "Record a paused pipeline decision or step on a worktree",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(holdNote) == "" {
+				return fmt.Errorf("--note is required: what is pending (question, options, context)")
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			wt, err := store.ResolveWorktree(s, args[0])
+			if err != nil {
+				return err
+			}
+			if flagDryRun {
+				fmt.Printf("would hold worktree %s: %s\n", wt.Slug, oneLine(holdNote))
+				return nil
+			}
+			wt.Hold = holdNote
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("worktree %s on hold: %s\n", wt.Slug, oneLine(holdNote))
+			return nil
+		},
+	}
+	hold.Flags().StringVar(&holdNote, "note", "", "what is pending")
+
+	resume := &cobra.Command{
+		Use:   "resume <worktree>",
+		Short: "Show and clear a worktree's hold (the paused step to redo)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			wt, err := store.ResolveWorktree(s, args[0])
+			if err != nil {
+				return err
+			}
+			if wt.Hold == "" {
+				fmt.Printf("worktree %s has no hold\n", wt.Slug)
+				return nil
+			}
+			if flagDryRun {
+				fmt.Printf("would clear hold on worktree %s: %s\n", wt.Slug, oneLine(wt.Hold))
+				return nil
+			}
+			note := wt.Hold
+			wt.Hold = ""
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("resume worktree %s: %s\n", wt.Slug, note)
+			return nil
+		},
+	}
+
 	teardown := &cobra.Command{
 		Use:   "teardown <worktree>",
 		Short: "Stop task agents and close tabs; keep the worktree checkout",
@@ -345,7 +407,7 @@ func newWorktreeCmd() *cobra.Command {
 		Use:   "worktree",
 		Short: "Manage per-issue git worktrees inside herdr",
 	}
-	cmd.AddCommand(list, add, get, update, teardown, remove)
+	cmd.AddCommand(list, add, get, update, hold, resume, teardown, remove)
 	return cmd
 }
 

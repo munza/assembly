@@ -29,11 +29,12 @@ func newStatusCmd() *cobra.Command {
 				Slug   string     `json:"slug"`
 				Status string     `json:"status"`
 				PR     int        `json:"pr,omitempty"`
+				Hold   string     `json:"hold,omitempty"`
 				Tasks  []taskView `json:"tasks"`
 			}
 			var view []wtView
 			for _, wt := range wts {
-				v := wtView{Slug: wt.Slug, Status: wt.Status, PR: wt.PR}
+				v := wtView{Slug: wt.Slug, Status: wt.Status, PR: wt.PR, Hold: wt.Hold}
 				for _, t := range store.WorktreeTasks(s, wt.Slug) {
 					v.Tasks = append(v.Tasks, taskView{t.ID, t.Type, t.Status, t.TabID != "", t.Note})
 				}
@@ -53,7 +54,11 @@ func newStatusCmd() *cobra.Command {
 					if wt.PR > 0 {
 						pr = fmt.Sprintf("  #%d", wt.PR)
 					}
-					fmt.Printf("%s  [%s]%s\n", wt.Slug, wt.Status, pr)
+					hold := ""
+					if wt.Hold != "" {
+						hold = fmt.Sprintf("  HOLD: %s", wt.Hold)
+					}
+					fmt.Printf("%s  [%s]%s%s\n", wt.Slug, wt.Status, pr, hold)
 					for _, t := range wt.Tasks {
 						mark := " "
 						if t.Running {

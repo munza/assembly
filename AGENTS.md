@@ -77,6 +77,8 @@ foreman
                                     # slug = args joined: plat-763-rate-limiter-tests
     get <worktree>
     update <worktree>        # --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
+    hold <worktree>          # --note <text> record a paused pipeline decision/step
+    resume <worktree>        # show + clear a hold; the step to redo
     teardown <worktree>      # stop agents + clean up tabs, keep worktree data
     remove <worktree>        # full delete of worktree + its tasks; --force if dirty
   task

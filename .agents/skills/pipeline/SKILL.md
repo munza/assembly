@@ -65,6 +65,13 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
 8. **Tab housekeeping**: only plan/research/test tabs close themselves on
    done. When a build/review/fix/respond stage reports done, immediately
    `task teardown <id>` to close its tab (record is kept).
+9. **Pause and resume**: if the user declines, breaks, or ignores any
+   question, do not drop it — record it with
+   `worktree hold <slug> --note "<the pending decision: question, options,
+   comment quotes>"` and say the pipeline is on hold. When the user asks to
+   resume, run `worktree resume <slug>` (prints and clears the hold),
+   re-derive the stage from `task list --worktree <slug>`, and re-ask or
+   re-dispatch exactly what the note says. `status` shows holds.
 
 ## Reference
 
