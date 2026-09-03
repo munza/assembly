@@ -102,7 +102,7 @@ func newMailboxCmd() *cobra.Command {
 					return err
 				}
 			}
-			if from == "worker" && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan") {
+			if from == "worker" && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan" || t.Type == "test") {
 				closeTaskTab(s, t)
 			}
 			if from == "foreman" && t.AgentName != "" && t.PaneID != "" {

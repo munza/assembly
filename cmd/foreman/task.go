@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var taskTypes = []string{"plan", "research", "build", "review", "respond"}
+var taskTypes = []string{"plan", "research", "build", "test", "fix", "review", "respond"}
 
 type taskRow struct {
 	ID       string `json:"id"`
@@ -136,10 +136,10 @@ func newTaskCmd() *cobra.Command {
 			if t.TabID != "" {
 				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, tabLabel(t))
 			}
-			if t.Type == "build" {
+			if t.Type == "build" || t.Type == "test" || t.Type == "fix" {
 				for _, pt := range store.WorktreeTasks(s, wt.Slug) {
 					if pt.Type == "plan" && pt.ID != t.ID && pt.Status != store.TaskDone && pt.Status != store.TaskFailed {
-						return fmt.Errorf("plan task %s is %s; build starts only after plan is done or failed", pt.ID, pt.Status)
+						return fmt.Errorf("plan task %s is %s; %s starts only after plan is done or failed", pt.ID, pt.Status, t.Type)
 					}
 				}
 			}
@@ -423,10 +423,19 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin string, researchPending 
 	if t.Type == "plan" && len(researchPending) > 0 {
 		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet and do NOT poll the mailbox. End your turn and wait: their report paths will be delivered into this tab as a new message; plan using them when it arrives.\n", strings.Join(researchPending, ", "))
 	}
-	if t.Type == "plan" || t.Type == "research" {
+	if t.Type == "plan" || t.Type == "research" || t.Type == "test" {
 		fmt.Fprintf(&b, "When finished, write your full report to `output/%s-%s.md` in the worktree root (create the dir), then send ONE final mailbox message containing that path with --status done. Your tab closes automatically.\n", t.ID, label)
 	}
-	if t.Type == "plan" || t.Type == "build" {
+	if t.Type == "test" {
+		fmt.Fprintf(&b, "You are the test gate. Run the project's test suite as-is; do NOT modify code to make tests pass. Start your done message with the line `VERDICT: pass` or `VERDICT: fail` and put failing output in the report.\n")
+	}
+	if t.Type == "fix" {
+		fmt.Fprintf(&b, "You are the fix stage. Implement exactly the findings in the task note; re-run the tests locally before reporting done.\n")
+	}
+	if t.Type == "review" {
+		fmt.Fprintf(&b, "End your done message with `FINDINGS: none` if the work is clean, or `FINDINGS:` followed by one numbered finding per line.\n")
+	}
+	if t.Type == "plan" || t.Type == "build" || t.Type == "fix" {
 		fmt.Fprintf(&b, "You may spawn parallel research when you need answers: `%s research \"<question>\" --worktree %s` then `%s task execute <new-task-id>`. Research reports to the central agent independently.\n", bin, wt.Slug, bin)
 	}
 	fmt.Fprintf(&b, "Work in the current directory only. Report progress with: %s mailbox send %s \"<summary>\" --status in-progress|self-review|done|blocked|failed\n", bin, t.ID)
