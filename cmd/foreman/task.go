@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"text/template"
 
 	"assembly/internal/herdr"
 	"assembly/internal/store"
@@ -418,21 +419,24 @@ func filteredTasks(s *store.State, f statusFilter) []*store.Task {
 	return ts
 }
 
+var taskGetText = template.Must(template.New("task").Parse(`ID:        {{.ID}}
+{{- if .Slug}}
+Slug:      {{.Slug}}
+{{- end}}
+Worktree:  {{.Worktree}}
+Type:      {{.Type}}
+Status:    {{.Status}}
+{{- if .NoteKind}}
+NoteKind:  {{.NoteKind}}
+{{- end}}
+{{- if .TabID}}
+Tab:       {{.TabID}} (agent {{.AgentName}})
+{{- end}}
+Note:      {{.Note}}
+`))
+
 func printTask(t *store.Task) {
-	kv("ID", "%s", t.ID)
-	if t.Slug != "" {
-		kv("Slug", "%s", t.Slug)
-	}
-	kv("Worktree", "%s", t.Worktree)
-	kv("Type", "%s", t.Type)
-	kv("Status", "%s", t.Status)
-	if t.NoteKind != "" {
-		kv("NoteKind", "%s", t.NoteKind)
-	}
-	if t.TabID != "" {
-		kv("Tab", "%s (agent %s)", t.TabID, t.AgentName)
-	}
-	kv("Note", "%s", t.Note)
+	_ = taskGetText.Execute(os.Stdout, t)
 }
 
 func oneLine(s string) string {

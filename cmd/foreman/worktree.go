@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	"assembly/internal/config"
 	"assembly/internal/herdr"
@@ -14,6 +15,24 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+var worktreeGetText = template.Must(template.New("worktree").Parse(`Slug:      {{.Worktree.Slug}}
+Project:   {{.Worktree.Project}}
+Branch:    {{.Worktree.Branch}}
+Status:    {{.Worktree.Status}}
+{{- if .Worktree.IssueID}}
+Issue:     {{.Worktree.IssueID}}
+{{- end}}
+{{- if .Worktree.PR}}
+PR:        #{{.Worktree.PR}}
+{{- end}}
+{{- if .Worktree.Path}}
+Path:      {{.Worktree.Path}}
+{{- end}}
+{{- range .Tasks}}
+Task:      {{.ID}} {{.Type}} {{.Status}} — {{.Note}}
+{{- end}}
+`))
 
 var issueIDPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-[0-9]+$`)
 
@@ -191,22 +210,7 @@ func newWorktreeCmd() *cobra.Command {
 				Tasks    []*store.Task   `json:"tasks"`
 			}
 			output(view{wt, tasks}, func() {
-				kv("Slug", "%s", wt.Slug)
-				kv("Project", "%s", wt.Project)
-				kv("Branch", "%s", wt.Branch)
-				kv("Status", "%s", wt.Status)
-				if wt.IssueID != "" {
-					kv("Issue", "%s", wt.IssueID)
-				}
-				if wt.PR > 0 {
-					kv("PR", "#%d", wt.PR)
-				}
-				if wt.Path != "" {
-					kv("Path", "%s", wt.Path)
-				}
-				for _, t := range tasks {
-					kv("Task", "%s %s %s — %s", t.ID, t.Type, t.Status, t.Note)
-				}
+				_ = worktreeGetText.Execute(os.Stdout, view{wt, tasks})
 			})
 			return nil
 		},

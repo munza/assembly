@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	"assembly/internal/config"
 	"assembly/internal/git"
@@ -15,6 +16,18 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+var projectGetText = template.Must(template.New("project").Parse(`Name:        {{.Project.Name}}
+Repo:        {{.Project.Repo}}
+Path:        {{.Project.Path}}
+{{- if .Project.IssuePrefix}}
+IssuePrefix: {{.Project.IssuePrefix}}
+{{- end}}
+Workspace:   {{.Project.WorkspaceID}}
+{{- range .Worktrees}}
+Worktree:    {{.Slug}} ({{.Branch}}, {{.Status}})
+{{- end}}
+`))
 
 func newProjectCmd() *cobra.Command {
 	var addName string
@@ -124,16 +137,7 @@ func newProjectCmd() *cobra.Command {
 				Worktrees []*store.Worktree `json:"worktrees"`
 			}
 			output(view{p, wts}, func() {
-				kv("Name", "%s", p.Name)
-				kv("Repo", "%s", p.Repo)
-				kv("Path", "%s", p.Path)
-				kv("Workspace", "%s", p.WorkspaceID)
-				if p.IssuePrefix != "" {
-					kv("IssuePrefix", "%s", p.IssuePrefix)
-				}
-				for _, wt := range wts {
-					kv("Worktree", "%s (%s, %s)", wt.Slug, wt.Branch, wt.Status)
-				}
+				_ = projectGetText.Execute(os.Stdout, view{p, wts})
 			})
 			return nil
 		},

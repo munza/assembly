@@ -58,11 +58,6 @@ func emitJSON(v any) {
 	_ = enc.Encode(v)
 }
 
-// kv prints one aligned "Key: value" line for the get-style outputs.
-func kv(key, format string, args ...any) {
-	fmt.Printf("%-10s %s\n", key+":", fmt.Sprintf(format, args...))
-}
-
 // tableOutput renders a slice of view structs as an aligned table in text mode
 // and as JSON in --json mode. Columns come from struct fields in order; the
 // header is the json tag uppercased; a field tagged omitempty is hidden when

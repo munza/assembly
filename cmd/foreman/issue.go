@@ -1,14 +1,31 @@
 package main
 
 import (
-	"fmt"
+	"os"
 	"strings"
+	"text/template"
 
 	"assembly/internal/config"
 	"assembly/internal/linear"
 
 	"github.com/spf13/cobra"
 )
+
+var issueText = template.Must(template.New("issue").Funcs(template.FuncMap{"join": strings.Join}).Parse(`ID:        {{.Identifier}}
+Title:     {{.Title}}
+State:     {{.State}}
+{{- if .Assignee}}
+Assignee:  {{.Assignee}}
+{{- end}}
+{{- if .Labels}}
+Labels:    {{join .Labels ", "}}
+{{- end}}
+URL:       {{.URL}}
+{{- if .Description}}
+----------------------------------------
+{{.Description}}
+{{- end}}
+`))
 
 func newIssueCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -25,20 +42,7 @@ func newIssueCmd() *cobra.Command {
 				return err
 			}
 			output(issue, func() {
-				kv("ID", "%s", issue.Identifier)
-				kv("Title", "%s", issue.Title)
-				kv("State", "%s", issue.State)
-				if issue.Assignee != "" {
-					kv("Assignee", "%s", issue.Assignee)
-				}
-				if len(issue.Labels) > 0 {
-					kv("Labels", "%s", strings.Join(issue.Labels, ", "))
-				}
-				kv("URL", "%s", issue.URL)
-				if issue.Description != "" {
-					fmt.Println(strings.Repeat("-", 40))
-					fmt.Println(issue.Description)
-				}
+				_ = issueText.Execute(os.Stdout, issue)
 			})
 			return nil
 		},

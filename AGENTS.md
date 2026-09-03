@@ -274,7 +274,10 @@ These apply to every change to this repo, human or agent:
   - The only shared mutable package vars are the global flags (`flagJSON`,
     `flagDryRun`) in `root.go`.
 - Colocate helpers with their owner: project helpers live in `project.go`, task
-  helpers in `task.go`. No `common.go` dumping grounds. Config values and their
+  helpers in `task.go`. No `common.go` dumping grounds.
+- get-style text output uses one `text/template` per command file (e.g.
+  `issueText`), parsed once with `template.Must`. Keys are fixed, so alignment
+  is hardcoded in the template. Config values and their
   accessors belong to `internal/config` (e.g. `config.LinearAPIKey()`), never
   re-implemented in cmd files.
 - No tests yet. Personal tool in early scaffolding; revisit once the core loop is
