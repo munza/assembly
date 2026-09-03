@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
 	"assembly/internal/git"
+	"assembly/internal/herdr"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -110,7 +112,7 @@ var projectGetCmd = &cobra.Command{
 		}
 		wts := store.ProjectWorktrees(s, p.Name)
 		type view struct {
-			Project   *store.Project   `json:"project"`
+			Project   *store.Project    `json:"project"`
 			Worktrees []*store.Worktree `json:"worktrees"`
 		}
 		output(view{p, wts}, func() {
@@ -150,6 +152,11 @@ var projectRemoveCmd = &cobra.Command{
 		for _, wt := range wts {
 			if err := removeWorktree(s, wt, true); err != nil {
 				return err
+			}
+		}
+		if p.WorkspaceID != "" {
+			if err := herdr.WorkspaceClose(p.WorkspaceID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
 		}
 		delete(s.Projects, p.Name)

@@ -21,11 +21,11 @@ var worktreeCmd = &cobra.Command{
 }
 
 var (
-	wtProject     string
-	wtBase        string
-	wtStatus      string
-	wtForce       bool
-	projectPurge  bool
+	wtProject    string
+	wtBase       string
+	wtStatus     string
+	wtForce      bool
+	projectPurge bool
 )
 
 func init() {
@@ -116,8 +116,11 @@ var worktreeAddCmd = &cobra.Command{
 			id, err := herdr.WorkspaceCreate(p.Path, p.Name)
 			if err != nil {
 				return err
-			}
+		}
 			p.WorkspaceID = id
+			if err := store.Save(s); err != nil {
+				return err
+			}
 		}
 		wsID, path, err := herdr.WorktreeCreate(p.WorkspaceID, slug, wtBase)
 		if err != nil {
