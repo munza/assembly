@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -49,11 +50,12 @@ func output(v any, text func()) {
 }
 
 func planRun(cmd string, args ...string) string {
-	s := cmd
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, cmd)
 	for _, a := range args {
-		s += " " + quoteIfNeeded(a)
+		parts = append(parts, quoteIfNeeded(a))
 	}
-	return s
+	return strings.Join(parts, " ")
 }
 
 func quoteIfNeeded(a string) string {
