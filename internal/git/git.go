@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -20,6 +21,20 @@ func Origin(path string) (string, error) {
 
 func IsRepo(path string) bool {
 	return exec.Command("git", "-C", path, "rev-parse", "--git-dir").Run() == nil
+}
+
+func Push(dir, branch string) error {
+	cmd := exec.Command("git", "-C", dir, "push", "-u", "origin", branch)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("git push %s: %s", branch, msg)
+	}
+	return nil
 }
 
 func parseRepo(url string) string {

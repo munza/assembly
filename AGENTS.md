@@ -90,8 +90,8 @@ foreman
     teardown <task-id>
     remove <task-id>
   pr
-    create <worktree>        # --title --base (title defaults to Linear issue title,
-                             #  base defaults to repo default branch)
+    create <worktree>        # push branch, then open PR --title --base (title defaults
+                             #  to Linear issue title, base defaults to repo default branch)
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread

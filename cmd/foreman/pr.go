@@ -56,7 +56,11 @@ func newPRCmd() *cobra.Command {
 			if !git.GhAvailable() {
 				return fmt.Errorf("gh not found in PATH")
 			}
+			if wt.Path == "" {
+				return fmt.Errorf("worktree %s has no recorded path; cannot push its branch", wt.Slug)
+			}
 			if flagDryRun {
+				fmt.Println("would run: git -C " + wt.Path + " push -u origin " + wt.Branch)
 				ghArgs := []string{"gh", "pr", "create", "--title", title, "--head", wt.Branch, "--repo", p.Repo}
 				if createBase != "" {
 					ghArgs = append(ghArgs, "--base", createBase)
@@ -64,6 +68,9 @@ func newPRCmd() *cobra.Command {
 				fmt.Println("would run: " + quoteAll(ghArgs...))
 				fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
 				return nil
+			}
+			if err := git.Push(wt.Path, wt.Branch); err != nil {
+				return err
 			}
 			url, err := git.PrCreate(wt.Path, p.Repo, title, body, createBase, wt.Branch)
 			if err != nil {
