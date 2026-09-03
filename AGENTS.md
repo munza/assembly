@@ -184,7 +184,8 @@ done message — `mailbox send` rejects a done from these types without an
 `output/` path. Their tabs close automatically on
 `done`/`failed` (blocked keeps the tab open for the answer). Test workers
 report `VERDICT: pass|fail`, review workers `FINDINGS: none` or numbered
-findings, and fix workers re-run tests locally before reporting done. A plan task whose
+findings, and fix workers re-run tests locally before reporting done.
+Build/fix/respond workers commit their changes before reporting done. A plan task whose
 worktree still has running research gets a "wait for the report paths" line in
 its prompt — end the turn, do not poll; the paths arrive as a pushed message.
 The central agent sends them once all research is done.

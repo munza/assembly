@@ -433,6 +433,9 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin, stateDir string, resear
 	if t.Type == "fix" {
 		fmt.Fprintf(&b, "You are the fix stage. Implement exactly the findings in the task note; re-run the tests locally before reporting done.\n")
 	}
+	if t.Type == "build" || t.Type == "fix" || t.Type == "respond" {
+		fmt.Fprintf(&b, "Commit your changes on the worktree branch with a brief plain message before reporting done; never report done with uncommitted changes.\n")
+	}
 	if t.Type == "review" {
 		fmt.Fprintf(&b, "End your done message with `FINDINGS: none` if the work is clean, or `FINDINGS:` followed by one numbered finding per line.\n")
 	}
