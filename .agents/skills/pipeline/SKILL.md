@@ -17,6 +17,10 @@ reach the user.
 - `pipeline pr <worktree>` — the ship half: resumes/verifies the build state,
   then DOC → LINT → PR → CI CHECK → WATCH → merged. Read `references/pr.md`
   first; `references/build.md` covers anything still missing in the worktree.
+- `pipeline review <pr>` — review someone else's PR as the reviewer: checkout,
+  review task, confirm findings with the user, post the review or not.
+  Read `references/review.md` first. Triggered by `review requested:` watch
+  events or the user directly.
 - `pipeline <worktree|issue>` — the full run: build half first, then
   immediately the pr half without stopping between them.
 
@@ -81,3 +85,4 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
 
 - Build half — stage machine and task recipes: [build](references/build.md)
 - Ship half — docs, lint, PR, CI, watch, merge: [pr](references/pr.md)
+- Review-only — someone else's PR, as the reviewer: [review](references/review.md)

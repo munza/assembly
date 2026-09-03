@@ -99,6 +99,8 @@ foreman
                              #  default; body follows the repo PR template)
     comment <pr|worktree>    # --body <text> [--reply <comment-id>] post a comment
                              #  or a threaded reply to an inline review comment
+    review <pr-number>       # --verdict approve|comment|request-changes --body <text>
+                             #  submit a review (repo from --repo or the pr-N worktree)
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread
@@ -192,10 +194,11 @@ its prompt — end the turn, do not poll; the paths arrive as a pushed message.
 The central agent sends them once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
 the single skill — keep it in sync with behavior changes. The pipeline skill
-(`.agents/skills/pipeline/`, references `build.md` + `pr.md`) drives the
-gated make-no-mistake flow: `pipeline build` (plan → build → test → review
-with a fix loop) and `pipeline pr` (docs → lint → PR → CI → merge), or plain
-`pipeline` for the full run. Keep them all in sync.
+(`.agents/skills/pipeline/`, references `build.md` + `pr.md` + `review.md`)
+drives the gated make-no-mistake flow: `pipeline build` (plan → build → test →
+review with a fix loop), `pipeline pr` (docs → lint → PR → CI → merge),
+`pipeline review` (someone else's PR, as reviewer), or plain `pipeline` for
+the full run. Keep them all in sync.
 
 ## Core flow
 
