@@ -72,6 +72,10 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    resume, run `worktree resume <slug>` (prints and clears the hold),
    re-derive the stage from `task list --worktree <slug>`, and re-ask or
    re-dispatch exactly what the note says. `status` shows holds.
+10. **Never block on watchman**: after dispatching, restarting the daemon, or
+   any push-based step, end the turn — reports and events arrive here on
+   their own. Use `watchman status` (instant) for health, never `sleep` or
+   wait-and-recheck.
 
 ## Reference
 

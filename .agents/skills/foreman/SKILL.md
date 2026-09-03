@@ -105,7 +105,10 @@ Check `status` at the start of every conversation and after acting on messages.
 
 Reports and GitHub events arrive here automatically: the watchman daemon
 pushes them into this tab as `[watchman] ...` prompts. Never poll the mailbox
-and never hold a turn waiting for a message.
+and never hold a turn waiting for a message. This includes verifying watchman
+behavior: after (re)starting it or dispatching work, check `watchman status`
+(instant) if needed and **end the turn** — never `sleep` or wait-and-recheck;
+the next event (or its absence) is the verification.
 
 Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by status:
 
