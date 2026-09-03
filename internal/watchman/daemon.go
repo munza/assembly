@@ -202,12 +202,12 @@ func deliver(pane string) {
 }
 
 func PromptText(m *store.Message) string {
-	head := "github event on " + m.TaskID
-	if m.From != "foreman" && m.From != "watch" {
-		head = "mailbox from " + m.From + " task " + m.TaskID
-	}
-	if m.Status != "" {
-		head += " [" + m.Status + "]"
+	head := "github event"
+	if m.From != "watch" {
+		head = m.From + " " + m.TaskID
+		if m.Status != "" {
+			head += " [" + m.Status + "]"
+		}
 	}
 	if m.Worktree != "" {
 		head += " " + m.Worktree
@@ -221,9 +221,11 @@ func PromptText(m *store.Message) string {
 		if len(inner) > 0 {
 			head += " (" + strings.Join(inner, ", ") + ")"
 		}
-		if m.TabLabel != "" {
-			head += " tab " + m.TabLabel
+		if m.From != "watch" && m.TabLabel != "" {
+			head += " · tab " + m.TabLabel
 		}
+	} else if m.From == "watch" && m.TaskID != "" && m.Worktree == "" {
+		head += " " + m.TaskID
 	}
 	body := m.Body
 	if len(body) > 4000 {
