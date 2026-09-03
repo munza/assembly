@@ -412,6 +412,68 @@ func newWorktreeCmd() *cobra.Command {
 	return cmd
 }
 
+func newResumeTopCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "resume [task-id|worktree]",
+		Short: "Resume a held pipeline step: by task, worktree, or the only hold",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			slug := ""
+			if len(args) == 1 {
+				ref := args[0]
+				if t, terr := store.ResolveTask(s, ref); terr == nil {
+					slug = t.Worktree
+				} else if _, werr := store.ResolveWorktree(s, ref); werr == nil {
+					slug = ref
+				} else {
+					return fmt.Errorf("%q is neither a task nor a worktree", ref)
+				}
+			} else {
+				var held []string
+				for _, wt := range s.Worktrees {
+					if wt.Hold != "" {
+						held = append(held, wt.Slug)
+					}
+				}
+				sort.Strings(held)
+				if len(held) == 0 {
+					fmt.Println("nothing on hold")
+					return nil
+				}
+				if len(held) > 1 {
+					fmt.Printf("multiple holds; pick one: %s\n", strings.Join(held, ", "))
+					return nil
+				}
+				slug = held[0]
+			}
+			wt, err := store.ResolveWorktree(s, slug)
+			if err != nil {
+				return err
+			}
+			if wt.Hold == "" {
+				fmt.Printf("worktree %s has no hold\n", wt.Slug)
+				return nil
+			}
+			if flagDryRun {
+				fmt.Printf("would clear hold on worktree %s: %s\n", wt.Slug, oneLine(wt.Hold))
+				return nil
+			}
+			note := wt.Hold
+			wt.Hold = ""
+			if err := store.Save(s); err != nil {
+				return err
+			}
+			fmt.Printf("resume worktree %s: %s\n", wt.Slug, note)
+			return nil
+		},
+	}
+	return c
+}
+
 func findWorkspaceByRoot(path string) string {
 	target, err := filepath.EvalSymlinks(path)
 	if err != nil {

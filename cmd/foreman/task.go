@@ -21,6 +21,7 @@ var taskTypes = []string{"plan", "research", "build", "test", "fix", "review", "
 type taskRow struct {
 	ID       string `json:"id"`
 	Worktree string `json:"worktree"`
+	Held     bool   `json:"held,omitempty"`
 	Type     string `json:"type"`
 	Status   string `json:"status"`
 	Note     string `json:"note"`
@@ -55,7 +56,13 @@ func newTaskCmd() *cobra.Command {
 			}
 			rows := make([]taskRow, len(tasks))
 			for i, t := range tasks {
-				rows[i] = taskRow{ID: t.ID, Worktree: t.Worktree, Type: t.Type, Status: t.Status, Note: oneLine(t.Note)}
+			status := t.Status
+			held := false
+			if wt, ok := s.Worktrees[t.Worktree]; ok && wt.Hold != "" {
+				held = true
+				status = t.Status + " (held)"
+			}
+				rows[i] = taskRow{ID: t.ID, Worktree: t.Worktree, Held: held, Type: t.Type, Status: status, Note: oneLine(t.Note)}
 			}
 			tableOutput(rows)
 			return nil

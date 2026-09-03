@@ -45,6 +45,7 @@ func newRootCmd() *cobra.Command {
 		newPRCmd(),
 		newMailboxCmd(),
 		newStatusCmd(),
+		newResumeTopCmd(),
 		newCleanCmd(),
 	)
 	root.AddCommand(newAliasCmds()...)
