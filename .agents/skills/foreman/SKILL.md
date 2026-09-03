@@ -23,7 +23,47 @@ work to worker pi agents and every report comes back to you.
 5. When anything changes (worker reports, PR events), tell the user in one
    short summary. You are their single status view.
 
+## start <issue-id> — kickoff flow
+
+The full issue kickoff. Every worker tab it spawns is a real foreman task with
+its own state (`task list --worktree <slug>`).
+
+1. **Fetch and prepare**
+   - `issue get <ISSUE-ID>` — show the user a summary.
+   - Reuse the issue's worktree if it exists (`worktree list`), else derive a
+     2-3 word slug from the title and run
+     `worktree add <ISSUE-ID> <word1> <word2> [<word3>]`
+     (slug `plat-763-rate-limiter-tests`; project resolved by `issue_prefix`).
+2. **Ask the user what to run** — use the `ask_user_question` tool
+   (rpiv-ask-user-question plugin), recommended option first:
+   1. Plan — "Run a planning task first?" → "Yes — plan first (Recommended)" /
+      "No — skip planning"
+   2. Research — "Which research should run in parallel?" (`multiSelect: true`)
+      → "Explore codebase (Recommended)" / "Similar implementations" /
+      "Read tests around the area" / "None"
+   3. Build — "Start the build task when plan is done?" → "Yes — auto-start
+      after plan (Recommended)" / "No — ask me when plan finishes" / "No build"
+3. **Spawn** — tab labels are `<verb>-<short-slug>` via `--slug`:
+   - plan and research: create + `task execute` immediately (parallel).
+   - build: `task execute` refuses while plan is pending/in-progress/
+     self-review/blocked (the dependency guard). Auto-start it the moment
+     plan reports `done` if the user chose that.
+   - plan/build workers spawn their own research subtasks when needed — they
+     appear in `task list` on their own; no action from you.
+4. **React to reports** (in addition to the general rules below):
+   - plan done → one line to the user; start build or ask; once build runs,
+     `worktree update <slug> --status building`.
+   - research done → relay the one-line summary; research never gates anything.
+   - build done → summarize, offer `pr create`, then
+     `worktree update <slug> --status pr-open`.
+   - blocked → if the worker's question is concrete, `ask_user_question` and
+     send the answer with `mailbox send <task-id> "<answer>"`; otherwise show
+     the worker's summary verbatim and send the user to the agent's tab in
+     herdr — decisions there are still reported back to you.
+
 ## Standard flow: issue → worktree → tasks → agents → PR
+
+The raw loop that `start` drives:
 
 ```bash
 go run ./cmd/foreman issue get ENG-123            # fetch details, show user a summary

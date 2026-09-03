@@ -73,7 +73,8 @@ foreman
     get <issue-id>           # fetch from Linear
   worktree
     list                     # --project to filter
-    add <issue-id|slug>      # --project (default: cwd's project), --base
+    add <issue-id|slug> [words...]  # --project (default: by issue_prefix or cwd), --base
+                                    # slug = args joined: plat-763-rate-limiter-tests
     get <worktree>
     update <worktree>        # --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
     teardown <worktree>      # stop agents + clean up tabs, keep worktree data
@@ -138,8 +139,13 @@ One command serves both directions. Sender is detected by comparing the shell's
 `task execute` spawns pi with a prompt that states: task ID, type, worktree slug,
 branch, note kind, the note itself, issue ref if any, and the exact mailbox command
 (using the `FOREMAN_BIN` binary path) for reporting
-`in-progress|self-review|done|blocked|failed`. The foreman skill lives at
-`.agents/skills/foreman/` — keep it in sync with behavior changes.
+`in-progress|self-review|done|blocked|failed`. The prompt also tells plan/build
+workers they may spawn `research` subtasks themselves, and every worker to send
+questions as `blocked` mailbox messages — the central agent asks the user and
+replies via `mailbox send`. `task execute` refuses to start a **build** while a
+plan task in the same worktree is pending/in-progress/self-review/blocked.
+The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
+the single skill — keep it in sync with behavior changes.
 
 ## Core flow
 

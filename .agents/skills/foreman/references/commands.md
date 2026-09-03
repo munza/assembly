@@ -25,7 +25,7 @@ issue get <issue-id>        # Linear, e.g. ENG-123
 
 ```
 worktree list [--project P]
-worktree add <issue-id|slug> [--base REF]    # project by issue_prefix, else --project/cwd
+worktree add <issue-id|slug> [words...] [--base REF]   # slug = args joined; project by issue_prefix
 worktree get <worktree>
 worktree update <worktree> --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
 worktree teardown <worktree>     # close tabs, keep checkout
@@ -50,7 +50,10 @@ task remove <task-id>
 
 ```
 plan <note> | research <note> | build <note> | review <note> | respond <note>
-  [--general|--thread] [--task T] [--issue ID] [--worktree W]
+  [--general|--thread] [--slug S] [--task T] [--issue ID] [--worktree W]
+
+task execute build tasks refuse to start while a plan task in the same
+worktree is pending/in-progress/self-review/blocked.
 ```
 
 `--task`/`--issue` pick the worktree and get referenced in the note.
