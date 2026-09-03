@@ -111,7 +111,7 @@ func tableOutput(rows any) {
 		}
 		cols = append(cols, c)
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 2, 3, ' ', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, 3, ' ', tabwriter.StripEscape)
 	header := make([]string, 0, len(cols))
 	for _, c := range cols {
 		if !c.hide {
