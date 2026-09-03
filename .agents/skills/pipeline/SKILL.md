@@ -24,11 +24,26 @@ Both halves share one worktree and never run two stages of one pipeline in
 parallel. Run everything through the foreman CLI (`go run ./cmd/foreman ...`);
 watchman pushes each worker report back into this tab.
 
+## Progress view
+
+Every pipeline update starts with the progress line, then one short sentence.
+
+    build:  ● PLAN ── ● BUILD ── ◉ TEST r1 (t5) ── ○ REVIEW
+    pr:     ○ DOC ── ○ LINT ── ○ PR#1 ── ○ CI ── ○ WATCH ── ○ MERGED
+
+- ● done
+- ◉ running — the current stage; include the task id and round suffix (TEST r2)
+- ○ not started
+- ✗ failed or blocked — annotate (`✗ FIX r2 (blocked: awaiting answer)`)
+
+Print the line(s) for the half(s) in play; plain `pipeline` shows both. Round
+numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r2).
+
 ## Shared rules
 
-1. **Advance automatically** on each `done` report; after every stage send the
-   user a one-line summary (stage, task id, outcome). No confirmations between
-   gates.
+1. **Advance automatically** on each `done` report; after every stage send
+   the user the progress line plus a one-line summary (stage, task id,
+   outcome). No confirmations between gates.
 2. **Loops cap at round 3.** A round is one FIX (or RESPOND) cycle. When a
    loop hits round 3 without clearing, stop auto-looping: send the user an
    update — what ran so far, what keeps failing (quote the last findings) —
