@@ -124,12 +124,15 @@ func newProjectCmd() *cobra.Command {
 				Worktrees []*store.Worktree `json:"worktrees"`
 			}
 			output(view{p, wts}, func() {
-				fmt.Printf("name       %s\nrepo       %s\npath       %s\nworkspace  %s\n", p.Name, p.Repo, p.Path, p.WorkspaceID)
+				kv("Name", "%s", p.Name)
+				kv("Repo", "%s", p.Repo)
+				kv("Path", "%s", p.Path)
+				kv("Workspace", "%s", p.WorkspaceID)
 				if p.IssuePrefix != "" {
-					fmt.Printf("issue_prefix  %s\n", p.IssuePrefix)
+					kv("IssuePrefix", "%s", p.IssuePrefix)
 				}
 				for _, wt := range wts {
-					fmt.Printf("worktree   %s (%s, %s)\n", wt.Slug, wt.Branch, wt.Status)
+					kv("Worktree", "%s (%s, %s)", wt.Slug, wt.Branch, wt.Status)
 				}
 			})
 			return nil

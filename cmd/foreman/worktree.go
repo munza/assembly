@@ -191,18 +191,21 @@ func newWorktreeCmd() *cobra.Command {
 				Tasks    []*store.Task   `json:"tasks"`
 			}
 			output(view{wt, tasks}, func() {
-				fmt.Printf("slug      %s\nproject   %s\nbranch    %s\nstatus    %s\n", wt.Slug, wt.Project, wt.Branch, wt.Status)
+				kv("Slug", "%s", wt.Slug)
+				kv("Project", "%s", wt.Project)
+				kv("Branch", "%s", wt.Branch)
+				kv("Status", "%s", wt.Status)
 				if wt.IssueID != "" {
-					fmt.Printf("issue     %s\n", wt.IssueID)
+					kv("Issue", "%s", wt.IssueID)
 				}
 				if wt.PR > 0 {
-					fmt.Printf("pr        #%d\n", wt.PR)
+					kv("PR", "#%d", wt.PR)
 				}
 				if wt.Path != "" {
-					fmt.Printf("path      %s\n", wt.Path)
+					kv("Path", "%s", wt.Path)
 				}
 				for _, t := range tasks {
-					fmt.Printf("task      %s %s %s — %s\n", t.ID, t.Type, t.Status, t.Note)
+					kv("Task", "%s %s %s — %s", t.ID, t.Type, t.Status, t.Note)
 				}
 			})
 			return nil

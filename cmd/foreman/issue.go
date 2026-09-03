@@ -25,16 +25,16 @@ func newIssueCmd() *cobra.Command {
 				return err
 			}
 			output(issue, func() {
-				fmt.Printf("ID:       %s\n", issue.Identifier)
-				fmt.Printf("Title:    %s\n", issue.Title)
-				fmt.Printf("State:    %s\n", issue.State)
+				kv("ID", "%s", issue.Identifier)
+				kv("Title", "%s", issue.Title)
+				kv("State", "%s", issue.State)
 				if issue.Assignee != "" {
-					fmt.Printf("Assignee: %s\n", issue.Assignee)
+					kv("Assignee", "%s", issue.Assignee)
 				}
 				if len(issue.Labels) > 0 {
-					fmt.Printf("Labels:   %s\n", strings.Join(issue.Labels, ", "))
+					kv("Labels", "%s", strings.Join(issue.Labels, ", "))
 				}
-				fmt.Printf("URL:      %s\n", issue.URL)
+				kv("URL", "%s", issue.URL)
 				if issue.Description != "" {
 					fmt.Println(strings.Repeat("-", 40))
 					fmt.Println(issue.Description)

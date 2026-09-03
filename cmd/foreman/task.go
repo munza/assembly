@@ -419,20 +419,20 @@ func filteredTasks(s *store.State, f statusFilter) []*store.Task {
 }
 
 func printTask(t *store.Task) {
-	fmt.Printf("id       %s\n", t.ID)
+	kv("ID", "%s", t.ID)
 	if t.Slug != "" {
-		fmt.Printf("slug     %s\n", t.Slug)
+		kv("Slug", "%s", t.Slug)
 	}
-	fmt.Printf("worktree %s\n", t.Worktree)
-	fmt.Printf("type     %s\n", t.Type)
-	fmt.Printf("status   %s\n", t.Status)
+	kv("Worktree", "%s", t.Worktree)
+	kv("Type", "%s", t.Type)
+	kv("Status", "%s", t.Status)
 	if t.NoteKind != "" {
-		fmt.Printf("note-kind %s\n", t.NoteKind)
+		kv("NoteKind", "%s", t.NoteKind)
 	}
 	if t.TabID != "" {
-		fmt.Printf("tab      %s (agent %s)\n", t.TabID, t.AgentName)
+		kv("Tab", "%s (agent %s)", t.TabID, t.AgentName)
 	}
-	fmt.Printf("note     %s\n", t.Note)
+	kv("Note", "%s", t.Note)
 }
 
 func oneLine(s string) string {
