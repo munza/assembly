@@ -191,7 +191,7 @@ configuration, not runtime state:
 }
 ```
 
-- `${VAR}` in any value expands from the environment **at read time** (`settings.Expand`).
+- `${VAR}` in any value expands from the environment **at read time** (`config.Expand`).
   Files keep the raw reference, so saving never clobbers `${...}` entries.
 - Projects are settings (name → path + repo). Paths are absolute — `project add`
   writes them that way.
@@ -218,7 +218,7 @@ configuration, not runtime state:
 - Layout:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
     project, issue, worktree, task, pr, mailbox, watch).
-  - `internal/settings/` — `.assembly/settings.json` load/save and `${ENV}` expansion.
+  - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
   - `internal/herdr/`, `internal/linear/`, `internal/github/`, `internal/git/` —
     thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
@@ -246,6 +246,20 @@ These apply to every change to this repo, human or agent:
 - Functional style: plain functions over structs-with-methods, composition over
   inheritance. No heavy FP machinery — no monads, no generic combinator libraries.
   Plain Go.
+- Command wiring (cobra):
+  - No `init()` in command files and no package-level `*cobra.Command` variables.
+    Calling methods on another file's package var hides the wiring and depends on
+    implicit file-name initialization order.
+  - Each command group is a constructor (`newIssueCmd() *cobra.Command`) that
+    declares its flag variables locally and captures them in its RunE closures.
+  - `newRootCmd()` in `root.go` is the only place that registers commands; it
+    assembles the whole tree explicitly.
+  - The only shared mutable package vars are the global flags (`flagJSON`,
+    `flagDryRun`) in `root.go`.
+- Colocate helpers with their owner: project helpers live in `project.go`, task
+  helpers in `task.go`. No `common.go` dumping grounds. Config values and their
+  accessors belong to `internal/config` (e.g. `config.LinearAPIKey()`), never
+  re-implemented in cmd files.
 - No tests yet. Personal tool in early scaffolding; revisit once the core loop is
   proven.
 - Stdlib first. Add a third-party dependency only when a concrete, demonstrated
