@@ -52,6 +52,8 @@ TEST/REVIEW and incremented on every FIX.
      REVIEW of the next round.
    - REVIEW `FINDINGS: none` → pipeline done: summarize for the user and
      offer `pr create <slug>` (then `worktree update <slug> --status pr-open`).
+     For the full ship flow (docs, lint, PR, CI, merge) hand off to the
+     pr-pipeline skill instead.
 3. **Escalate at round 3.** If FIX→TEST→REVIEW has cycled three times and
    still is not clean, stop auto-looping. Send the user an update — what the
    pipeline did so far, what keeps failing (quote the last findings) — and

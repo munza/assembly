@@ -90,8 +90,10 @@ foreman
     teardown <task-id>
     remove <task-id>
   pr
-    create <worktree>        # push branch, then open PR --title --base (title defaults
-                             #  to Linear issue title, base defaults to repo default branch)
+    create <worktree>        # push branch, then open PR --title --base --no-template
+                             #  (idempotent: reuses an existing PR for the branch;
+                             #  title defaults to Linear issue title, base to repo
+                             #  default; body follows the repo PR template)
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread
@@ -180,7 +182,9 @@ The central agent sends them once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
 the single skill — keep it in sync with behavior changes. The build-pipeline
 skill (`.agents/skills/build-pipeline/`) drives the gated pipeline flow
-(plan → build → test → review with a fix loop); keep it in sync too.
+(plan → build → test → review with a fix loop); the pr-pipeline skill
+(`.agents/skills/pr-pipeline/`) continues from a clean review through docs,
+lint, PR, CI and merge. Keep them all in sync.
 
 ## Core flow
 
