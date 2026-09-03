@@ -188,7 +188,7 @@ func deliver(pane string) {
 		return
 	}
 	for _, m := range ms {
-		if m.From != "worker" && m.From != "watch" {
+		if m.From == "foreman" {
 			continue
 		}
 		if err := herdr.AgentPrompt(pane, PromptText(m)); err != nil {
