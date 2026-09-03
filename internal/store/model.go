@@ -63,6 +63,7 @@ type Message struct {
 	Worktree string    `json:"worktree,omitempty"`
 	IssueID  string    `json:"issue_id,omitempty"`
 	TabLabel string    `json:"tab_label,omitempty"`
+	ParentID string    `json:"parent_id,omitempty"`
 	Time     time.Time `json:"time"`
 	Read     bool      `json:"read"`
 }

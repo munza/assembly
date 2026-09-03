@@ -83,14 +83,24 @@ func newMailboxCmd() *cobra.Command {
 				return fmt.Errorf("invalid status %q; valid: %s", sendStatus, strings.Join(store.TaskStatuses, "|"))
 			}
 			from := store.SenderLabel(t.PaneID)
-			if from == "worker" && sendStatus == store.TaskDone && (t.Type == "plan" || t.Type == "research" || t.Type == "test") && !strings.Contains(args[1], "output/") {
+			workerSend := from == "worker"
+			if workerSend {
+				from = t.Type
+			}
+			parent := ""
+			if workerSend {
+				parent = t.TabID
+			} else if p := os.Getenv("HERDR_PANE_ID"); p != "" {
+				parent = p
+			}
+			if workerSend && sendStatus == store.TaskDone && (t.Type == "plan" || t.Type == "research" || t.Type == "test") && !strings.Contains(args[1], "output/") {
 				if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
 					expected := filepath.Join(store.Dir(), "output", reportPrefix(wt)+"-"+taskLabel(t)+".md")
 					return fmt.Errorf("done message must mention the report file path (expected `%s`); write the report, then resend including the path", expected)
 				}
 				return fmt.Errorf("done message must mention the report file path under output/; write the report, then resend including the path")
 			}
-			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
+			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus, ParentID: parent}
 			if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
 				m.Project, m.Worktree, m.IssueID = wt.Project, wt.Slug, wt.IssueID
 				m.TabLabel = tabLabel(t)
@@ -114,10 +124,10 @@ func newMailboxCmd() *cobra.Command {
 					return err
 				}
 			}
-			if from == "worker" && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan" || t.Type == "test") {
+			if workerSend && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan" || t.Type == "test") {
 				closeTaskTab(s, t)
 			}
-			if from == "foreman" && t.AgentName != "" && t.PaneID != "" {
+			if !workerSend && t.AgentName != "" && t.PaneID != "" {
 				if err := herdr.AgentPrompt(t.AgentName, args[1]); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not prompt agent: %v\n", err)
 				}

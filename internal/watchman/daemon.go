@@ -203,8 +203,8 @@ func deliver(pane string) {
 
 func PromptText(m *store.Message) string {
 	head := "github event on " + m.TaskID
-	if m.From == "worker" {
-		head = "mailbox from task " + m.TaskID
+	if m.From != "foreman" && m.From != "watch" {
+		head = "mailbox from " + m.From + " task " + m.TaskID
 	}
 	if m.Status != "" {
 		head += " [" + m.Status + "]"
