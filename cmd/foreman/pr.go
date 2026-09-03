@@ -212,11 +212,61 @@ func newPRCmd() *cobra.Command {
 	commentCmd.Flags().StringVar(&commentBody, "body", "", "comment text")
 	commentCmd.Flags().IntVar(&commentReplyID, "reply", 0, "inline comment ID to reply to (thread reply)")
 
+	var reviewVerdict, reviewBody, reviewRepo string
+	reviewCmd := &cobra.Command{
+		Use:   "review <pr-number>",
+		Short: "Submit a PR review (approve, comment, or request-changes)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prNum, err := strconv.Atoi(args[0])
+			if err != nil || prNum <= 0 {
+				return fmt.Errorf("%q is not a PR number", args[0])
+			}
+			verdicts := map[string]bool{"approve": true, "comment": true, "request-changes": true}
+			if !verdicts[reviewVerdict] {
+				return fmt.Errorf("--verdict is required: approve|comment|request-changes")
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+		}
+			st, err := config.Load()
+			if err != nil {
+				return err
+		}
+			repo := reviewRepo
+			if repo == "" {
+				if wt, ok := s.Worktrees[fmt.Sprintf("pr-%d", prNum)]; ok {
+				repo = st.Projects[wt.Project].Repo
+			} else if len(st.Projects) == 1 {
+				for _, p := range st.Projects {
+					repo = p.Repo
+				}
+			}
+			}
+			if repo == "" {
+				return fmt.Errorf("cannot resolve repo; pass --repo owner/name (or --project context)")
+			}
+			if flagDryRun {
+				fmt.Printf("would run: gh pr review %d --repo %s --%s (body: %s)\n", prNum, repo, reviewVerdict, oneLine(reviewBody))
+				return nil
+			}
+			if err := git.PRReview(repo, prNum, reviewVerdict, reviewBody); err != nil {
+				return err
+			}
+			fmt.Printf("submitted %s review on PR #%d\n", reviewVerdict, prNum)
+			return nil
+		},
+	}
+	reviewCmd.Flags().StringVar(&reviewVerdict, "verdict", "", "approve|comment|request-changes")
+	reviewCmd.Flags().StringVar(&reviewBody, "body", "", "review body (the findings)")
+	reviewCmd.Flags().StringVar(&reviewRepo, "repo", "owner/name", "repo (defaults to the pr-N worktree's project, or the single registered project)")
+
 	cmd := &cobra.Command{
 		Use:   "pr",
 		Short: "Create and inspect GitHub pull requests",
 	}
-	cmd.AddCommand(create, get, commentCmd)
+	cmd.AddCommand(create, get, commentCmd, reviewCmd)
 	return cmd
 }
 

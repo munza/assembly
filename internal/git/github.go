@@ -127,6 +127,23 @@ func PRReplyComment(repo string, number, commentID int, body string) (int, error
 	return r.ID, nil
 }
 
+func PRReview(repo string, number int, verdict, body string) error {
+	flag := map[string]string{
+		"approve": "--approve",
+		"comment": "--comment",
+		"request-changes": "--request-changes",
+	}[verdict]
+	if flag == "" {
+		return fmt.Errorf("invalid verdict %q; valid: approve|comment|request-changes", verdict)
+	}
+	args := []string{"pr", "review", fmt.Sprintf("%d", number), "--repo", repo, flag}
+	if strings.TrimSpace(body) != "" {
+		args = append(args, "--body", body)
+	}
+	_, err := run("", args...)
+	return err
+}
+
 func ReviewRequested(repo string) ([]map[string]any, error) {
 	out, err := run("", "pr", "list", "--repo", repo, "--search", "review-requested:@me", "--json", "number,title,author,url")
 	if err != nil {
