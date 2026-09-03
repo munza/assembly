@@ -31,7 +31,7 @@ func GhAvailable() bool {
 	return err == nil
 }
 
-func PrCreate(dir, repo, title, body, base, head string) (string, error) {
+func PrCreate(dir, repo, title, body, base, head string) (string, bool, error) {
 	args := []string{"pr", "create", "--title", title, "--body", body, "--head", head}
 	if repo != "" {
 		args = append(args, "--repo", repo)
@@ -40,14 +40,35 @@ func PrCreate(dir, repo, title, body, base, head string) (string, error) {
 		args = append(args, "--base", base)
 	}
 	out, err := run(dir, args...)
-	if err != nil {
-		return "", err
+	if err == nil {
+		return firstLine(out), false, nil
 	}
-	url := strings.TrimSpace(string(out))
-	if i := strings.IndexAny(url, "\r\n"); i >= 0 {
-		url = url[:i]
+	if !strings.Contains(err.Error(), "already exists") {
+		return "", false, err
 	}
-	return url, nil
+	viewArgs := []string{"pr", "view", head, "--json", "url"}
+	if repo != "" {
+		viewArgs = append(viewArgs, "--repo", repo)
+	}
+	v, verr := run(dir, viewArgs...)
+	if verr != nil {
+		return "", false, err
+	}
+	var r struct {
+		URL string `json:"url"`
+	}
+	if jerr := json.Unmarshal(v, &r); jerr != nil || r.URL == "" {
+		return "", false, err
+	}
+	return r.URL, true, nil
+}
+
+func firstLine(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
+		s = s[:i]
+	}
+	return s
 }
 
 func PrView(repo string, number int, withComments bool) (map[string]any, error) {
@@ -64,6 +85,18 @@ func PrView(repo string, number int, withComments bool) (map[string]any, error) 
 		return nil, err
 	}
 	return v, nil
+}
+
+func PRReviewComments(repo string, number int) ([]map[string]any, error) {
+	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments", repo, number))
+	if err != nil {
+		return nil, err
+	}
+	var cs []map[string]any
+	if err := json.Unmarshal(out, &cs); err != nil {
+		return nil, err
+	}
+	return cs, nil
 }
 
 func ReviewRequested(repo string) ([]map[string]any, error) {

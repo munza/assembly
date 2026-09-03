@@ -140,6 +140,11 @@ func newPRCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if getComments {
+				if inline, ierr := git.PRReviewComments(p.Repo, prNum); ierr == nil && len(inline) > 0 {
+					v["inlineComments"] = inline
+				}
+			}
 			output(v, func() { printPR(v) })
 			return nil
 		},
@@ -242,6 +247,23 @@ func printPR(v map[string]any) {
 			state, _ := rm["state"].(string)
 			body, _ := rm["body"].(string)
 			fmt.Printf("  @%s [%s]: %s\n", login, state, oneLine(body))
+		}
+	}
+	if inline, ok := v["inlineComments"].([]map[string]any); ok && len(inline) > 0 {
+		fmt.Printf("\ninline review comments (%d):\n", len(inline))
+		for _, ic := range inline {
+			user, _ := ic["user"].(map[string]any)
+			login := ""
+			if user != nil {
+				login, _ = user["login"].(string)
+			}
+			path, _ := ic["path"].(string)
+			line, has := ic["line"].(float64)
+			if !has || line == 0 {
+				line, _ = ic["original_line"].(float64)
+			}
+			body, _ := ic["body"].(string)
+			fmt.Printf("  @%s on %s:%d: %s\n", login, path, int(line), body)
 		}
 	}
 }

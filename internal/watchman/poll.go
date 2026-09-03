@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"assembly/internal/config"
 	"assembly/internal/git"
@@ -71,7 +72,11 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 				}
 				if count > wt.SeenComments {
 					n := count - wt.SeenComments
-					appendWorktreeEvent(wt, fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, wt.PR))
+					body := fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, wt.PR)
+					if detail := commentDetail(v, repo, wt.PR); detail != "" {
+						body += "\n" + detail
+					}
+					appendWorktreeEvent(wt, body)
 					events += n
 					wt.SeenComments = count
 					if updateWorktreeFromPR(s, wt, v) {
@@ -122,6 +127,63 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 		return true
 	}
 	return false
+}
+
+func commentDetail(v map[string]any, repo string, prNum int) string {
+	var lines []string
+	if comments, ok := v["comments"].([]any); ok {
+		for _, c := range comments {
+			cm, _ := c.(map[string]any)
+			author := authorLogin(cm)
+			body, _ := cm["body"].(string)
+			if strings.TrimSpace(body) != "" {
+				lines = append(lines, fmt.Sprintf("- @%s (comment): %s", author, body))
+			}
+		}
+	}
+	if reviews, ok := v["reviews"].([]any); ok {
+		for _, r := range reviews {
+			rm, _ := r.(map[string]any)
+			state, _ := rm["state"].(string)
+			body, _ := rm["body"].(string)
+			if strings.TrimSpace(body) != "" {
+				lines = append(lines, fmt.Sprintf("- @%s (review %s): %s", authorLogin(rm), state, body))
+			}
+		}
+	}
+	if inline, err := git.PRReviewComments(repo, prNum); err == nil {
+		for _, ic := range inline {
+			author := userLogin(ic)
+			path, _ := ic["path"].(string)
+			loc := path
+			if line, ok := ic["line"].(float64); ok && line > 0 {
+				loc = fmt.Sprintf("%s:%d", path, int(line))
+			} else if line, ok := ic["original_line"].(float64); ok && line > 0 {
+				loc = fmt.Sprintf("%s:%d (original)", path, int(line))
+			}
+			body, _ := ic["body"].(string)
+			lines = append(lines, fmt.Sprintf("- @%s on %s: %s", author, loc, body))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func authorLogin(m map[string]any) string {
+	author, _ := m["author"].(map[string]any)
+	if author == nil {
+		return ""
+	}
+	login, _ := author["login"].(string)
+	return login
+}
+
+func userLogin(m map[string]any) string {
+	user, _ := m["user"].(map[string]any)
+	if user == nil {
+		return ""
+	}
+	login, _ := user["login"].(string)
+	return login
 }
 
 func appendEvent(target, body string) {
