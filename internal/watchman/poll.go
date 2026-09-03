@@ -62,7 +62,6 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 					continue
 				}
-				key := fmt.Sprintf("%s#%d", wt.Slug, wt.PR)
 				count := 0
 				if comments, ok := v["comments"].([]any); ok {
 					count = len(comments)
@@ -70,12 +69,11 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 				if reviews, ok := v["reviews"].([]any); ok {
 					count += len(reviews)
 				}
-				if count > seen[key] {
-					if n := count - seen[key]; n > 0 {
-						appendWorktreeEvent(wt, fmt.Sprintf("%d new comment(s)/review(s) on PR #%d (%s)", n, wt.PR, key))
-						events += n
-					}
-					seen[key] = count
+				if count > wt.SeenComments {
+					n := count - wt.SeenComments
+					appendWorktreeEvent(wt, fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, wt.PR))
+					events += n
+					wt.SeenComments = count
 					if updateWorktreeFromPR(s, wt, v) {
 						events++
 					}
