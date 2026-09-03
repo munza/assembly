@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -291,7 +292,7 @@ func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error)
 	if typ == "" {
 		return nil, fmt.Errorf("--type is required: %s", strings.Join(taskTypes, "|"))
 	}
-	if !isValidTaskType(typ) {
+	if !slices.Contains(taskTypes, typ) {
 		return nil, fmt.Errorf("invalid type %q; valid: %s", typ, strings.Join(taskTypes, "|"))
 	}
 	if note == "" {
@@ -389,15 +390,6 @@ func agentName(label string) string {
 		n = n[:32]
 	}
 	return n
-}
-
-func isValidTaskType(t string) bool {
-	for _, v := range taskTypes {
-		if v == t {
-			return true
-		}
-	}
-	return false
 }
 
 func filteredTasks(s *store.State, f statusFilter) []*store.Task {
