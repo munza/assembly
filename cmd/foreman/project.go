@@ -32,16 +32,19 @@ func newProjectCmd() *cobra.Command {
 				return err
 			}
 			ps := sortedProjectViews(s, st)
-			output(ps, func() {
-				if len(ps) == 0 {
-					fmt.Println("no projects")
-					return
+			if len(ps) == 0 {
+				fmt.Println("no projects")
+				return nil
+			}
+			rows := make([]projectRow, len(ps))
+			for i, p := range ps {
+				repo := p.Repo
+				if repo != "" {
+					repo = "https://github.com/" + repo
 				}
-				fmt.Println("NAME\tREPO\tPATH")
-				for _, p := range ps {
-					fmt.Printf("%s\thttps://github.com/%s\t%s\n", p.Name, p.Repo, p.Path)
-				}
-			})
+				rows[i] = projectRow{Name: p.Name, Repo: repo, Path: p.Path}
+			}
+			tableOutput(rows)
 			return nil
 		},
 	}
@@ -177,6 +180,12 @@ func newProjectCmd() *cobra.Command {
 	}
 	cmd.AddCommand(list, add, get, remove)
 	return cmd
+}
+
+type projectRow struct {
+	Name string `json:"name"`
+	Repo string `json:"repo"`
+	Path string `json:"path"`
 }
 
 type projView struct {

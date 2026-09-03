@@ -17,6 +17,14 @@ import (
 
 var issueIDPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-[0-9]+$`)
 
+type worktreeRow struct {
+	Slug    string `json:"slug"`
+	Project string `json:"project"`
+	Branch  string `json:"branch"`
+	Status  string `json:"status"`
+	PR      string `json:"pr"`
+}
+
 func newWorktreeCmd() *cobra.Command {
 	var addProject, addBase string
 	var listProject, updateStatus string
@@ -31,19 +39,19 @@ func newWorktreeCmd() *cobra.Command {
 				return err
 			}
 			wts := sortedWorktrees(s, listProject)
-			output(wts, func() {
-				if len(wts) == 0 {
-					fmt.Println("no worktrees")
-					return
+			if len(wts) == 0 {
+				fmt.Println("no worktrees")
+				return nil
+			}
+			rows := make([]worktreeRow, len(wts))
+			for i, wt := range wts {
+				pr := "-"
+				if wt.PR > 0 {
+					pr = fmt.Sprintf("#%d", wt.PR)
 				}
-				for _, wt := range wts {
-					pr := "-"
-					if wt.PR > 0 {
-						pr = fmt.Sprintf("#%d", wt.PR)
-					}
-					fmt.Printf("%s\t%s\t%s\t%s\t%s\n", wt.Slug, wt.Project, wt.Branch, wt.Status, pr)
-				}
-			})
+				rows[i] = worktreeRow{Slug: wt.Slug, Project: wt.Project, Branch: wt.Branch, Status: wt.Status, PR: pr}
+			}
+			tableOutput(rows)
 			return nil
 		},
 	}

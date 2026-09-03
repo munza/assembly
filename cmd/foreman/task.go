@@ -16,6 +16,14 @@ import (
 
 var taskTypes = []string{"plan", "research", "build", "review", "respond"}
 
+type taskRow struct {
+	ID       string `json:"id"`
+	Worktree string `json:"worktree"`
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	Note     string `json:"note"`
+}
+
 type statusFilter struct {
 	status   string
 	typ      string
@@ -39,15 +47,15 @@ func newTaskCmd() *cobra.Command {
 				return err
 			}
 			tasks := filteredTasks(s, listFilter)
-			output(tasks, func() {
-				if len(tasks) == 0 {
-					fmt.Println("no tasks")
-					return
-				}
-				for _, t := range tasks {
-					fmt.Printf("%s\t%s\t%s\t%s\t%s\n", t.ID, t.Worktree, t.Type, t.Status, oneLine(t.Note))
-				}
-			})
+			if len(tasks) == 0 {
+				fmt.Println("no tasks")
+				return nil
+			}
+			rows := make([]taskRow, len(tasks))
+			for i, t := range tasks {
+				rows[i] = taskRow{ID: t.ID, Worktree: t.Worktree, Type: t.Type, Status: t.Status, Note: oneLine(t.Note)}
+			}
+			tableOutput(rows)
 			return nil
 		},
 	}
