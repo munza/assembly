@@ -160,3 +160,32 @@ func Workspaces() ([]map[string]any, error) {
 	}
 	return out, nil
 }
+
+// WorkspaceCloseDetached closes a workspace from a detached process, for the
+// same reason as TabCloseDetached.
+func WorkspaceCloseDetached(workspaceID string) {
+	cmd := exec.Command("sh", "-c", "sleep 1; exec herdr workspace close "+workspaceID)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	_ = cmd.Start()
+}
+
+func TabCount(workspaceID string) int {
+	res, err := RunJSON("tab", "list", "--workspace", workspaceID)
+	if err != nil {
+		return -1
+	}
+	list, _ := dig(res, "result", "tabs").([]any)
+	return len(list)
+}
+
+func WorktreeOpen(path, label string) (string, error) {
+	res, err := RunJSON("worktree", "open", "--path", path, "--label", label)
+	if err != nil {
+		return "", err
+	}
+	id := str(res, "result", "workspace", "workspace_id")
+	if id == "" {
+		return "", fmt.Errorf("herdr worktree open: no workspace_id in response")
+	}
+	return id, nil
+}

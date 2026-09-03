@@ -103,11 +103,7 @@ func newMailboxCmd() *cobra.Command {
 				}
 			}
 			if from == "worker" && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan") {
-				herdr.TabCloseDetached(t.TabID)
-				t.TabID, t.PaneID, t.AgentName = "", "", ""
-				if err := store.Save(s); err != nil {
-					return err
-				}
+				closeTaskTab(s, t)
 			}
 			if from == "foreman" && t.AgentName != "" && t.PaneID != "" {
 				if err := herdr.AgentPrompt(t.AgentName, args[1]); err != nil {
@@ -126,6 +122,16 @@ func newMailboxCmd() *cobra.Command {
 	}
 	cmd.AddCommand(inbox, send)
 	return cmd
+}
+
+func closeTaskTab(s *store.State, t *store.Task) {
+	if wt, err := store.ResolveWorktree(s, t.Worktree); err == nil && wt.WorkspaceID != "" && herdr.TabCount(wt.WorkspaceID) <= 1 {
+		herdr.WorkspaceCloseDetached(wt.WorkspaceID)
+	} else {
+		herdr.TabCloseDetached(t.TabID)
+	}
+	t.TabID, t.PaneID, t.AgentName = "", "", ""
+	_ = store.Save(s)
 }
 
 func followMailbox() error {

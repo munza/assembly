@@ -185,6 +185,13 @@ func newTaskCmd() *cobra.Command {
 				return nil
 			}
 			tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+			if err != nil && wt.Path != "" {
+				if newID, openErr := herdr.WorktreeOpen(wt.Path, wt.Slug); openErr == nil && newID != "" {
+					wt.WorkspaceID = newID
+					_ = store.Save(s)
+					tabID, paneID, err = herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+				}
+			}
 			if err != nil {
 				return err
 			}
