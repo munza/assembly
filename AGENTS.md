@@ -191,6 +191,10 @@ configuration, not runtime state:
     "api_key": "${LINEAR_API_KEY}",
     "workspace": "myteam"
   },
+  "pi": {
+    "model": "glm-5.3",
+    "thinking": "high"
+  },
   "projects": {
     "igloo": {
       "path": "/Users/me/code/igloo",
@@ -201,6 +205,11 @@ configuration, not runtime state:
 }
 ```
 
+- `pi.model` / `pi.thinking` are passed to every worker as
+  `pi --model <m> --thinking <t>`; without them workers use the pi default.
+- The default tab herdr creates with each worktree is closed automatically
+  after the first task agent spawns (closing it earlier would close the
+  workspace).
 - `issue_prefix` is a regex matched against Linear issue IDs. One prefix or many:
   `^ENG-` or `^(ENG|TAW)-`. `worktree add ENG-123` uses it to pick the project
   without `--project`, and rejects an issue routed to a project whose prefix
