@@ -85,7 +85,7 @@ func logf(format string, args ...any) {
 // Run is the daemon loop. It blocks until SIGTERM/SIGINT, or until the
 // foreman pane it is bound to disappears.
 func Run(opts Options) error {
-	if err := os.MkdirAll(store.Dir(), 0o755); err != nil {
+	if err := os.MkdirAll(store.MailboxDir(), 0o755); err != nil {
 		return err
 	}
 	if opts.Interval > 0 && !git.GhAvailable() {
