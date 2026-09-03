@@ -44,22 +44,34 @@ its own state (`task list --worktree <slug>`).
    3. Build — "Start the build task when plan is done?" → "Yes — auto-start
       after plan (Recommended)" / "No — ask me when plan finishes" / "No build"
 3. **Spawn** — tab labels are `<verb>-<short-slug>` via `--slug`:
-   - plan and research: create + `task execute` immediately (parallel).
-   - build: `task execute` refuses while plan is pending/in-progress/
+   - plan and research: create + `task execute` immediately (parallel). If
+     research is still running when plan starts, plan's prompt tells it to
+     wait for the research report paths — you send them (step 4).
+   - build: `task execute` refuses while a plan task is pending/in-progress/
      self-review/blocked (the dependency guard). Auto-start it the moment
      plan reports `done` if the user chose that.
    - plan/build workers spawn their own research subtasks when needed — they
-     appear in `task list` on their own; no action from you.
+     appear in `task list` on their own; when those finish, relay their report
+     paths to the plan tab too.
 4. **React to reports** (in addition to the general rules below):
-   - plan done → one line to the user; start build or ask; once build runs,
-     `worktree update <slug> --status building`.
-   - research done → relay the one-line summary; research never gates anything.
+   - research done → the message contains the report path
+     (`output/<task-id>-<label>.md` in the worktree); the tab closed itself.
+     ALWAYS share a summary with the user. If a plan task is waiting on
+     research, once ALL research for the worktree is done send the paths to
+     the plan tab: `mailbox send <plan-task-id> "Research done, reports:
+     output/t2-....md, output/t3-....md — plan now."` (delivered into the
+     plan agent's pane). Only skip this if the user explicitly says to plan
+     without waiting for research.
+   - plan done → the message contains the plan path; tab closed itself.
+     ALWAYS share a summary, then prompt the user for the next step (usually
+     build; execute it or ask, per their earlier choice).
    - build done → summarize, offer `pr create`, then
      `worktree update <slug> --status pr-open`.
-   - blocked → if the worker's question is concrete, `ask_user_question` and
-     send the answer with `mailbox send <task-id> "<answer>"`; otherwise show
-     the worker's summary verbatim and send the user to the agent's tab in
-     herdr — decisions there are still reported back to you.
+   - blocked (question) → the message body has `QUESTION:` and `OPTION:`
+     lines. Do NOT auto-ask. Tell the user which task has a question and ask
+     if they want to see it; only if yes, relay it via `ask_user_question`
+     (options from the OPTION: lines) and send the answer back:
+     `mailbox send <task-id> "<answer>"`. The user never leaves this tab.
 
 ## Standard flow: issue → worktree → tasks → agents → PR
 
@@ -93,14 +105,20 @@ Check `status` at the start of every conversation and after acting on messages.
 Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by status:
 
 - **in-progress / self-review**: nothing to do; mention to user if asked.
-- **done**: read the message; next step is usually the next task type
-  (plan done → execute build; build done → `pr create <worktree>` then
-  `worktree update <worktree> --status pr-open`; review done → tell user).
-- **blocked**: show the user the worker's message verbatim, ask how to proceed.
-  If needed, answer the worker: `go run ./cmd/foreman mailbox send t1 "<answer>"`
-  (delivered into their tab as a prompt).
+- **done (research/plan)**: message contains the report path
+  (`output/<task-id>-<label>.md`); the tab closed itself. ALWAYS share a
+  summary with the user. Plan/research never require cleanup from you.
+- **done (plan)** → prompt the user for the next step (build, usually).
+- **done (build)** → `pr create <worktree>` then
+  `worktree update <worktree> --status pr-open`; review done → tell user.
+- **blocked**: the message contains a QUESTION/OPTION block. Never auto-ask:
+  tell the user which task has a question and offer to show it; relay via
+  `ask_user_question` only if they want it, then send the answer with
+  `mailbox send <task-id> "<answer>"` (delivered into their tab). The user
+  never needs to open the worker tab.
 - **failed**: show the user the message; propose re-run (`task update t1 --status
-  pending` + `task execute t1`) or teardown.
+  pending` + `task execute t1`) or teardown. research/plan tabs close on
+  failed too.
 
 ## PR cycle
 
@@ -127,10 +145,11 @@ go run ./cmd/foreman watch --interval 300 --pr    # polls all projects' PRs into
 
 ## Talking to a worker directly
 
-The user may open a worker tab and talk to it there. Decisions made there are
-only recorded if the worker runs `mailbox send`. If the user tells you about a
-decision made in a tab, update state yourself
-(`task update <id> --status ...`) so records stay true.
+The user should never need to leave this tab: worker questions arrive as
+blocked mailbox messages and are relayed through you. If the user opens a
+worker tab anyway and a decision is made there, it is only recorded if the
+worker runs `mailbox send` — if the user tells you about it, update state
+yourself (`task update <id> --status ...`) so records stay true.
 
 ## Wrapping up
 

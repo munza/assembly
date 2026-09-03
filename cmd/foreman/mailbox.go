@@ -102,6 +102,13 @@ func newMailboxCmd() *cobra.Command {
 					return err
 				}
 			}
+			if from == "worker" && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan") {
+				herdr.TabCloseDetached(t.TabID)
+				t.TabID, t.PaneID, t.AgentName = "", "", ""
+				if err := store.Save(s); err != nil {
+					return err
+				}
+			}
 			if from == "foreman" && t.AgentName != "" && t.PaneID != "" {
 				if err := herdr.AgentPrompt(t.AgentName, args[1]); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not prompt agent: %v\n", err)

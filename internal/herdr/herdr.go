@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 func Available() bool {
@@ -119,6 +120,15 @@ func TabCreate(workspaceID, cwd, label string, env map[string]string) (string, s
 func TabClose(tabID string) error {
 	_, err := RunJSON("tab", "close", tabID)
 	return err
+}
+
+// TabCloseDetached closes a tab from a detached process. Used when a worker's
+// own mailbox send closes its tab: the sender must survive long enough to
+// finish writing the message.
+func TabCloseDetached(tabID string) {
+	cmd := exec.Command("sh", "-c", "sleep 1; exec herdr tab close "+tabID)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	_ = cmd.Start()
 }
 
 func AgentStart(name, paneID string, agentArgs ...string) error {

@@ -141,9 +141,15 @@ branch, note kind, the note itself, issue ref if any, and the exact mailbox comm
 (using the `FOREMAN_BIN` binary path) for reporting
 `in-progress|self-review|done|blocked|failed`. The prompt also tells plan/build
 workers they may spawn `research` subtasks themselves, and every worker to send
-questions as `blocked` mailbox messages — the central agent asks the user and
-replies via `mailbox send`. `task execute` refuses to start a **build** while a
-plan task in the same worktree is pending/in-progress/self-review/blocked.
+questions as `blocked` mailbox messages (`QUESTION:` + `OPTION:` lines) — the
+central agent offers the question to the user (never auto-asks) and replies via
+`mailbox send`. `task execute` refuses to start a **build** while a plan task in
+the same worktree is pending/in-progress/self-review/blocked.
+Plan/research workers write their report to `output/<task-id>-<label>.md` and
+reference the path in their done message; their tabs close automatically on
+`done`/`failed` (blocked keeps the tab open for the answer). A plan task whose
+worktree still has running research gets a "wait for the report paths" line in
+its prompt; the central agent sends the paths once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
 the single skill — keep it in sync with behavior changes.
 

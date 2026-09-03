@@ -163,7 +163,7 @@ func newTaskCmd() *cobra.Command {
 			if cfg.Pi.Thinking != "" {
 				piArgs = append(piArgs, "--thinking", cfg.Pi.Thinking)
 			}
-			prompt := buildPrompt(t, wt, bin)
+			prompt := buildPrompt(t, wt, bin, pendingResearch(s, wt.Slug))
 			stateDir, err := filepath.Abs(store.Dir())
 			if err != nil {
 				return err
@@ -401,7 +401,8 @@ func resolveWorktreeForTask(s *store.State, ref string) (*store.Worktree, error)
 	return nil, fmt.Errorf("pass --worktree (or have exactly one worktree)")
 }
 
-func buildPrompt(t *store.Task, wt *store.Worktree, bin string) string {
+func buildPrompt(t *store.Task, wt *store.Worktree, bin string, researchPending []string) string {
+	label := taskLabel(t)
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are worker task %s (%s) in git worktree %q (branch %s).", t.ID, t.Type, wt.Slug, wt.Branch)
 	if t.NoteKind != "" {
@@ -411,12 +412,36 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin string) string {
 	if wt.IssueID != "" {
 		fmt.Fprintf(&b, "Issue: %s (run `%s issue get %s` for details).\n", wt.IssueID, bin, wt.IssueID)
 	}
+	if t.Type == "plan" && len(researchPending) > 0 {
+		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet. Wait for a follow-up message containing their report paths, then plan using them.\n", strings.Join(researchPending, ", "))
+	}
+	if t.Type == "plan" || t.Type == "research" {
+		fmt.Fprintf(&b, "When finished, write your full report to `output/%s-%s.md` in the worktree root (create the dir), then send ONE final mailbox message containing that path with --status done. Your tab closes automatically.\n", t.ID, label)
+	}
 	if t.Type == "plan" || t.Type == "build" {
 		fmt.Fprintf(&b, "You may spawn parallel research when you need answers: `%s research \"<question>\" --worktree %s` then `%s task execute <new-task-id>`. Research reports to the central agent independently.\n", bin, wt.Slug, bin)
 	}
 	fmt.Fprintf(&b, "Work in the current directory only. Report progress with: %s mailbox send %s \"<summary>\" --status in-progress|self-review|done|blocked|failed\n", bin, t.ID)
-	fmt.Fprintf(&b, "If you need user input, send your question in the mailbox message with --status blocked; the central agent asks the user and sends the answer back to you.\n")
+	fmt.Fprintf(&b, "If you need user input, send --status blocked with your question in the message body (first line: QUESTION: <text>; then one line per OPTION: <text>). The central agent offers the question to the user and sends the answer back to you.\n")
 	return b.String()
+}
+
+func taskLabel(t *store.Task) string {
+	if t.Slug != "" {
+		return t.Slug
+	}
+	return t.Type + "-" + t.ID
+}
+
+func pendingResearch(s *store.State, slug string) []string {
+	var ids []string
+	for _, t := range store.WorktreeTasks(s, slug) {
+		if t.Type == "research" && t.Status != store.TaskDone && t.Status != store.TaskFailed {
+			ids = append(ids, t.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func agentName(label string) string {

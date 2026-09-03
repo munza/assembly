@@ -13,6 +13,16 @@ Work in the current directory only. Report progress with:
 foreman mailbox send t3 "<summary>" --status in-progress|self-review|done|blocked|failed
 ```
 
+Plus, depending on type:
+
+- plan with running research: "Research tasks t2, t3 are still running. Do NOT
+  plan yet. Wait for a follow-up message containing their report paths..."
+- plan/research: "When finished, write your full report to
+  `output/<task-id>-<label>.md` ... then send ONE final mailbox message
+  containing that path with --status done. Your tab closes automatically."
+- plan/build: they may spawn `research` subtasks themselves.
+- all types: blocked questions use `QUESTION:` / `OPTION:` lines in the body.
+
 Keep this contract in sync with `buildPrompt` in `cmd/foreman/task.go`.
 
 ## Environment inside a worker tab
@@ -30,8 +40,12 @@ Keep this contract in sync with `buildPrompt` in `cmd/foreman/task.go`.
 - `mailbox inbox` prints and marks shown messages read. `--follow` streams new
   ones (fsnotify).
 - `mailbox send` from the foreman side also delivers the text into the worker's
-  tab via `herdr agent prompt`.
+  tab via `herdr agent prompt` (used to hand research report paths to a waiting
+  plan agent, and answers to blocked workers).
 - `--status` on send updates the task status in `state.json`.
+- A worker `mailbox send --status done|failed` from a research or plan tab
+  closes its own tab automatically (detached close, so the message lands
+  first). Blocked workers keep their tab open for the answer.
 
 ## Watch events
 
