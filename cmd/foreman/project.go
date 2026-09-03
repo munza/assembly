@@ -37,8 +37,9 @@ func newProjectCmd() *cobra.Command {
 					fmt.Println("no projects")
 					return
 				}
+				fmt.Println("NAME\tREPO\tPATH")
 				for _, p := range ps {
-					fmt.Printf("%s\t%s\t%s\n", p.Name, p.Repo, p.Path)
+					fmt.Printf("%s\thttps://github.com/%s\t%s\n", p.Name, p.Repo, p.Path)
 				}
 			})
 			return nil
