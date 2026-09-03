@@ -146,6 +146,20 @@ func AgentPrompt(name, text string) error {
 	return err
 }
 
+func PaneExists(paneID string) (bool, error) {
+	res, err := RunJSON("pane", "list")
+	if err != nil {
+		return false, err
+	}
+	panes, _ := dig(res, "result", "panes").([]any)
+	for _, p := range panes {
+		if m, ok := p.(map[string]any); ok && m["pane_id"] == paneID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func Workspaces() ([]map[string]any, error) {
 	res, err := RunJSON("workspace", "list")
 	if err != nil {

@@ -68,25 +68,36 @@ func MarkRead(ids ...string) error {
 	for _, id := range ids {
 		want[id] = true
 	}
-	ms, err := LoadMessages()
+	entries, err := os.ReadDir(MailboxDir())
 	if err != nil {
 		return err
 	}
-	for _, m := range ms {
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".tmp") {
+			continue
+		}
+		path := filepath.Join(MailboxDir(), e.Name())
+		b, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var m Message
+		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
 		if !want[m.ID] || m.Read {
 			continue
 		}
 		m.Read = true
-		b, err := json.MarshalIndent(m, "", "  ")
+		b, err = json.MarshalIndent(&m, "", "  ")
 		if err != nil {
 			return err
 		}
-		name := filepath.Join(MailboxDir(), m.ID+".json")
-		tmp := name + ".tmp"
+		tmp := path + ".tmp"
 		if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
 			return err
 		}
-		if err := os.Rename(tmp, name); err != nil {
+		if err := os.Rename(tmp, path); err != nil {
 			return err
 		}
 	}
