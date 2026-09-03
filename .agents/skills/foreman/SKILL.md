@@ -56,11 +56,11 @@ its own state (`task list --worktree <slug>`).
      paths to the plan tab too.
 4. **React to reports** (in addition to the general rules below):
    - research done → the message contains the report path
-     (`output/<task-id>-<label>.md` in the worktree); the tab closed itself.
+     (`.assembly/output/<task-id>-<label>.md`, central state dir); the tab closed itself.
      ALWAYS share a summary with the user. If a plan task is waiting on
      research, once ALL research for the worktree is done send the paths to
      the plan tab: `mailbox send <plan-task-id> "Research done, reports:
-     output/t2-....md, output/t3-....md — plan now."` (delivered into the
+     .assembly/output/t2-....md, .assembly/output/t3-....md — plan now."` (delivered into the
      plan agent's pane). Only skip this if the user explicitly says to plan
      without waiting for research.
    - plan done → the message contains the plan path; tab closed itself.
@@ -111,7 +111,7 @@ Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by stat
 
 - **in-progress / self-review**: nothing to do; mention to user if asked.
 - **done (research/plan)**: message contains the report path
-  (`output/<task-id>-<label>.md`); the tab closed itself. ALWAYS share a
+  (`.assembly/output/<task-id>-<label>.md`); the tab closed itself. ALWAYS share a
   summary with the user. Plan/research never require cleanup from you.
 - **done (plan)** → prompt the user for the next step (build, usually).
 - **done (build)** → `pr create <worktree>` then

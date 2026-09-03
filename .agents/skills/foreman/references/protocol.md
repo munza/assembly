@@ -19,10 +19,12 @@ Plus, depending on type:
   plan yet and do NOT poll the mailbox. End your turn and wait: their report
   paths will be delivered into this tab as a new message; plan using them when
   it arrives."
-- plan/research: "When finished, write your full report to
-  `output/<task-id>-<label>.md` ... then send ONE final mailbox message
-  containing that path with --status done. Your tab closes automatically."
-- plan/build: they may spawn `research` subtasks themselves.
+- plan/research/test: "When finished, write your full report to
+  `<state-dir>/output/<task-id>-<label>.md` ... then send ONE final mailbox
+  message that mentions that exact file path with --status done. Your tab
+  closes automatically. `mailbox send` rejects a done from these types whose
+  message lacks an `output/` path."
+- plan/build/fix: they may spawn `research` subtasks themselves.
 - all types: blocked questions use `QUESTION:` / `OPTION:` lines in the body.
 
 Keep this contract in sync with `buildPrompt` in `cmd/foreman/task.go`.

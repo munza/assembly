@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -82,6 +83,10 @@ func newMailboxCmd() *cobra.Command {
 				return fmt.Errorf("invalid status %q; valid: %s", sendStatus, strings.Join(store.TaskStatuses, "|"))
 			}
 			from := store.SenderLabel(t.PaneID)
+			if from == "worker" && sendStatus == store.TaskDone && (t.Type == "plan" || t.Type == "research" || t.Type == "test") && !strings.Contains(args[1], "output/") {
+				expected := filepath.Join(store.Dir(), "output", t.ID+"-"+taskLabel(t)+".md")
+				return fmt.Errorf("done message must mention the report file path (expected `%s`); write the report, then resend including the path", expected)
+			}
 			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
 			if flagDryRun {
 				fmt.Printf("would record message from %s for task %s: %s\n", from, t.ID, oneLine(args[1]))

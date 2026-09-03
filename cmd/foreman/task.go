@@ -163,11 +163,11 @@ func newTaskCmd() *cobra.Command {
 			if cfg.Pi.Thinking != "" {
 				piArgs = append(piArgs, "--thinking", cfg.Pi.Thinking)
 			}
-			prompt := buildPrompt(t, wt, bin, pendingResearch(s, wt.Slug))
 			stateDir, err := filepath.Abs(store.Dir())
 			if err != nil {
 				return err
 			}
+			prompt := buildPrompt(t, wt, bin, stateDir, pendingResearch(s, wt.Slug))
 			env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
 			if flagDryRun {
 				fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
@@ -409,7 +409,7 @@ func resolveWorktreeForTask(s *store.State, ref string) (*store.Worktree, error)
 	return nil, fmt.Errorf("pass --worktree (or have exactly one worktree)")
 }
 
-func buildPrompt(t *store.Task, wt *store.Worktree, bin string, researchPending []string) string {
+func buildPrompt(t *store.Task, wt *store.Worktree, bin, stateDir string, researchPending []string) string {
 	label := taskLabel(t)
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are worker task %s (%s) in git worktree %q (branch %s).", t.ID, t.Type, wt.Slug, wt.Branch)
@@ -424,7 +424,8 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin string, researchPending 
 		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet and do NOT poll the mailbox. End your turn and wait: their report paths will be delivered into this tab as a new message; plan using them when it arrives.\n", strings.Join(researchPending, ", "))
 	}
 	if t.Type == "plan" || t.Type == "research" || t.Type == "test" {
-		fmt.Fprintf(&b, "When finished, write your full report to `output/%s-%s.md` in the worktree root (create the dir), then send ONE final mailbox message containing that path with --status done. Your tab closes automatically.\n", t.ID, label)
+		report := filepath.Join(stateDir, "output", t.ID+"-"+label+".md")
+		fmt.Fprintf(&b, "When finished, write your full report to `%s` (create the dir), then send ONE final mailbox message that mentions that exact file path with --status done. Your tab closes automatically.\n", report)
 	}
 	if t.Type == "test" {
 		fmt.Fprintf(&b, "You are the test gate. Run the project's test suite as-is; do NOT modify code to make tests pass. Start your done message with the line `VERDICT: pass` or `VERDICT: fail` and put failing output in the report.\n")
