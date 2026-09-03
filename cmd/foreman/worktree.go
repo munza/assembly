@@ -77,9 +77,9 @@ func newWorktreeCmd() *cobra.Command {
 	list.Flags().StringVar(&listProject, "project", "", "filter by project")
 
 	add := &cobra.Command{
-		Use:   "add <issue-id|slug>",
+		Use:   "add <issue-id|slug> [words...]",
 		Short: "Create a worktree for an issue or custom slug",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := store.Load()
 			if err != nil {
@@ -115,11 +115,10 @@ func newWorktreeCmd() *cobra.Command {
 				}
 			}
 			ref := args[0]
-			slug := strings.ToLower(ref)
+			slug := strings.ToLower(strings.Join(args, "-"))
 			issueID := ""
 			if issueIDPattern.MatchString(ref) {
 				issueID = strings.ToUpper(ref)
-				slug = strings.ToLower(issueID)
 				if err := checkIssuePrefix(st, p, issueID); err != nil {
 					return err
 				}

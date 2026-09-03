@@ -11,6 +11,7 @@ import (
 type aliasOpts struct {
 	general  bool
 	thread   bool
+	slug     string
 	task     string
 	issue    string
 	worktree string
@@ -36,6 +37,7 @@ func newAliasCmd(verb string) *cobra.Command {
 	}
 	c.Flags().BoolVar(&o.general, "general", false, "note is a general note")
 	c.Flags().BoolVar(&o.thread, "thread", false, "note is tied to a review thread")
+	c.Flags().StringVar(&o.slug, "slug", "", "short unique slug (used as tab/agent label)")
 	c.Flags().StringVar(&o.task, "task", "", "related task (uses its worktree, referenced in the note)")
 	c.Flags().StringVar(&o.issue, "issue", "", "Linear issue ID (uses its worktree, referenced in the note)")
 	c.Flags().StringVar(&o.worktree, "worktree", "", "target worktree")
@@ -75,7 +77,7 @@ func runAlias(verb, note string, o aliasOpts) error {
 	} else if o.general {
 		noteKind = "general"
 	}
-	t, err := addTask(verb, joinNote(noteParts), "", target, noteKind)
+	t, err := addTask(verb, joinNote(noteParts), o.slug, target, noteKind)
 	if err != nil {
 		return err
 	}

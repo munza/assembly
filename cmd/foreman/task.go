@@ -135,6 +135,13 @@ func newTaskCmd() *cobra.Command {
 			if t.TabID != "" {
 				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, t.TabID)
 			}
+			if t.Type == "build" {
+				for _, pt := range store.WorktreeTasks(s, wt.Slug) {
+					if pt.Type == "plan" && pt.ID != t.ID && pt.Status != store.TaskDone && pt.Status != store.TaskFailed {
+						return fmt.Errorf("plan task %s is %s; build starts only after plan is done or failed", pt.ID, pt.Status)
+					}
+				}
+			}
 			label := t.Slug
 			if label == "" {
 				label = t.Type + "-" + t.ID
@@ -377,7 +384,11 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin string) string {
 	if wt.IssueID != "" {
 		fmt.Fprintf(&b, "Issue: %s (run `%s issue get %s` for details).\n", wt.IssueID, bin, wt.IssueID)
 	}
+	if t.Type == "plan" || t.Type == "build" {
+		fmt.Fprintf(&b, "You may spawn parallel research when you need answers: `%s research \"<question>\" --worktree %s` then `%s task execute <new-task-id>`. Research reports to the central agent independently.\n", bin, wt.Slug, bin)
+	}
 	fmt.Fprintf(&b, "Work in the current directory only. Report progress with: %s mailbox send %s \"<summary>\" --status in-progress|self-review|done|blocked|failed\n", bin, t.ID)
+	fmt.Fprintf(&b, "If you need user input, send your question in the mailbox message with --status blocked; the central agent asks the user and sends the answer back to you.\n")
 	return b.String()
 }
 
