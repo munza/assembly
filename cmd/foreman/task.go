@@ -134,7 +134,7 @@ func newTaskCmd() *cobra.Command {
 				return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
 			}
 			if t.TabID != "" {
-				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, t.TabID)
+				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, tabLabel(t))
 			}
 			if t.Type == "build" {
 				for _, pt := range store.WorktreeTasks(s, wt.Slug) {
@@ -215,7 +215,7 @@ func newTaskCmd() *cobra.Command {
 			if err := store.Save(s); err != nil {
 				return err
 			}
-			fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, tabID)
+			fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, label)
 			return nil
 		},
 	}
@@ -452,6 +452,13 @@ func pendingResearch(s *store.State, slug string) []string {
 	return ids
 }
 
+func tabLabel(t *store.Task) string {
+	if t.Slug != "" {
+		return t.Slug
+	}
+	return t.Type + "-" + t.ID
+}
+
 func agentName(label string) string {
 	name := strings.ToLower(label)
 	var b strings.Builder
@@ -501,7 +508,7 @@ Status:    {{.Status}}
 NoteKind:  {{.NoteKind}}
 {{- end}}
 {{- if .TabID}}
-Tab:       {{.TabID}} (agent {{.AgentName}})
+Tab:       {{if .Slug}}{{.Slug}}{{else}}{{.Type}}-{{.ID}}{{end}} (agent {{.AgentName}})
 {{- end}}
 Note:      {{.Note}}
 `))
