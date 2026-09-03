@@ -213,6 +213,9 @@ configuration, not runtime state:
 
 - `pi.model` / `pi.thinking` are passed to every worker as
   `pi --model <m> --thinking <t>`; without them workers use the pi default.
+- The project workspace is adopted, not duplicated: `worktree add` first looks
+  for an existing herdr workspace whose non-linked repo root matches the
+  project path (symlinks resolved); only when none exists does it create one.
 - The default tab herdr creates with each worktree is closed automatically
   after the first task agent spawns (closing it earlier would close the
   workspace).
