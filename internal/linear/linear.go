@@ -22,6 +22,24 @@ type Issue struct {
 
 const issueQuery = `query($id: String!) { issue(id: $id) { identifier title description url state { name } assignee { name } labels { nodes { name } } } }`
 
+type wireIssue struct {
+	Identifier  string `json:"identifier"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	State       struct {
+		Name string `json:"name"`
+	} `json:"state"`
+	Assignee struct {
+		Name string `json:"name"`
+	} `json:"assignee"`
+	Labels struct {
+		Nodes []struct {
+			Name string `json:"name"`
+		} `json:"nodes"`
+	} `json:"labels"`
+}
+
 func GetIssue(id, apiKey string) (*Issue, error) {
 	key := apiKey
 	if key == "" {
@@ -47,9 +65,11 @@ func GetIssue(id, apiKey string) (*Issue, error) {
 	}
 	defer res.Body.Close()
 	var out struct {
-		Errors []struct{ Message string } `json:"errors"`
-		Data   struct {
-			Issue *Issue `json:"issue"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+		Data struct {
+			Issue *wireIssue `json:"issue"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
@@ -61,5 +81,17 @@ func GetIssue(id, apiKey string) (*Issue, error) {
 	if out.Data.Issue == nil {
 		return nil, fmt.Errorf("linear issue %q not found", id)
 	}
-	return out.Data.Issue, nil
+	w := out.Data.Issue
+	issue := &Issue{
+		Identifier:  w.Identifier,
+		Title:       w.Title,
+		Description: w.Description,
+		URL:         w.URL,
+		State:       w.State.Name,
+		Assignee:    w.Assignee.Name,
+	}
+	for _, n := range w.Labels.Nodes {
+		issue.Labels = append(issue.Labels, n.Name)
+	}
+	return issue, nil
 }
