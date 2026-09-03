@@ -36,6 +36,7 @@ Task:      {{.ID}} {{.Type}} {{.Status}} — {{.Note}}
 `))
 
 var issueIDPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*-[0-9]+$`)
+var prRefPattern = regexp.MustCompile(`^pr-[0-9]+$`)
 
 type worktreeRow struct {
 	Slug    string `json:"slug"`
@@ -118,7 +119,7 @@ func newWorktreeCmd() *cobra.Command {
 			ref := args[0]
 			slug := strings.ToLower(strings.Join(args, "-"))
 			issueID := ""
-			if issueIDPattern.MatchString(ref) {
+			if issueIDPattern.MatchString(ref) && !prRefPattern.MatchString(strings.ToLower(ref)) {
 				issueID = strings.ToUpper(ref)
 				if err := checkIssuePrefix(st, p, issueID); err != nil {
 					return err
