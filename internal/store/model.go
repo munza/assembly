@@ -24,10 +24,7 @@ const (
 var TaskStatuses = []string{TaskPending, TaskInProgress, TaskSelfReview, TaskDone, TaskBlocked, TaskFailed}
 var WorktreeStatuses = []string{WtPlanning, WtBuilding, WtPROpen, WtAwaitingReview, WtAddressingComments, WtReadyForMerge, WtDone, WtBlocked, WtFailed}
 
-type Project struct {
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	Repo        string `json:"repo"`
+type ProjectState struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 }
 
@@ -66,8 +63,7 @@ type Message struct {
 }
 
 type State struct {
-	Projects  map[string]*Project  `json:"projects"`
-	Worktrees map[string]*Worktree `json:"worktrees"`
-	Tasks     map[string]*Task     `json:"tasks"`
-	NextTask  int                  `json:"next_task"`
+	Projects  map[string]*ProjectState `json:"projects"`
+	Worktrees map[string]*Worktree     `json:"worktrees"`
+	Tasks     map[string]*Task         `json:"tasks"`
 }

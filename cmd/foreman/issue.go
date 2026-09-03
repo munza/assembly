@@ -24,7 +24,8 @@ var issueGetCmd = &cobra.Command{
 	Short: "Fetch a Linear issue by ID (e.g. ENG-123)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		issue, err := linear.GetIssue(args[0])
+		key := linearKey()
+		issue, err := linear.GetIssue(args[0], key)
 		if err != nil {
 			return err
 		}

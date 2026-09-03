@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"assembly/internal/herdr"
@@ -398,6 +399,7 @@ func filteredTasks(s *store.State, f statusFilter) []*store.Task {
 		}
 		ts = append(ts, t)
 	}
+	sort.Slice(ts, func(i, j int) bool { return ts[i].ID < ts[j].ID })
 	return ts
 }
 

@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
 	"assembly/internal/herdr"
 	"assembly/internal/linear"
+	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -76,7 +76,11 @@ var worktreeAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		p, err := resolveProject(s, wtProject)
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
+		p, err := resolveTargetProject(s, st, wtProject)
 		if err != nil {
 			return err
 		}
@@ -95,7 +99,7 @@ var worktreeAddCmd = &cobra.Command{
 		}
 		title := ""
 		if issueID != "" {
-			if issue, err := linear.GetIssue(issueID); err == nil {
+			if issue, err := linear.GetIssue(issueID, linearKey()); err == nil {
 				title = issue.Title
 			} else {
 				fmt.Fprintf(os.Stderr, "warning: could not fetch issue %s: %v\n", issueID, err)
@@ -118,7 +122,7 @@ var worktreeAddCmd = &cobra.Command{
 				return err
 			}
 			p.WorkspaceID = id
-			if err := store.Save(s); err != nil {
+			if err := setProjectWorkspace(s, p.Name, id); err != nil {
 				return err
 			}
 		}
@@ -318,22 +322,6 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 	}
 	delete(s.Worktrees, wt.Slug)
 	return nil
-}
-
-func resolveProject(s *store.State, name string) (*store.Project, error) {
-	if name != "" {
-		return store.ResolveProject(s, name)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range s.Projects {
-		if cwd == p.Path || strings.HasPrefix(cwd, p.Path+string(filepath.Separator)) {
-			return p, nil
-		}
-	}
-	return nil, fmt.Errorf("cwd is not inside a registered project; pass --project")
 }
 
 func isValidSlug(s string) bool {

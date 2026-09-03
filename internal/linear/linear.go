@@ -22,10 +22,13 @@ type Issue struct {
 
 const issueQuery = `query($id: String!) { issue(id: $id) { identifier title description url state { name } assignee { name } labels { nodes { name } } } }`
 
-func GetIssue(id string) (*Issue, error) {
-	key := os.Getenv("LINEAR_API_KEY")
+func GetIssue(id, apiKey string) (*Issue, error) {
+	key := apiKey
 	if key == "" {
-		return nil, errors.New("LINEAR_API_KEY not set")
+		key = os.Getenv("LINEAR_API_KEY")
+	}
+	if key == "" {
+		return nil, errors.New("no Linear API key: set linear.api_key in .assembly/settings.json or LINEAR_API_KEY")
 	}
 	body, err := json.Marshal(map[string]any{"query": issueQuery, "variables": map[string]any{"id": id}})
 	if err != nil {

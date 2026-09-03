@@ -7,6 +7,7 @@ import (
 
 	"assembly/internal/github"
 	"assembly/internal/linear"
+	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -52,14 +53,18 @@ var prCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		p, err := store.ResolveProject(s, wt.Project)
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
+		p, err := resolveProjectView(s, st, wt.Project)
 		if err != nil {
 			return err
 		}
 		title := prTitle
 		body := ""
 		if title == "" && wt.IssueID != "" {
-			if issue, err := linear.GetIssue(wt.IssueID); err == nil {
+			if issue, err := linear.GetIssue(wt.IssueID, linearKey()); err == nil {
 				title = issue.Title
 				body = fmt.Sprintf("[%s](%s)\n\n%s", issue.Identifier, issue.URL, issue.Description)
 			} else {
@@ -114,7 +119,11 @@ var prGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		p, err := store.ResolveProject(s, wt.Project)
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
+		p, err := resolveProjectView(s, st, wt.Project)
 		if err != nil {
 			return err
 		}

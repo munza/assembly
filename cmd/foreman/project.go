@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"assembly/internal/git"
 	"assembly/internal/herdr"
+	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -15,7 +15,7 @@ import (
 
 var projectCmd = &cobra.Command{
 	Use:   "project",
-	Short: "Manage registered projects",
+	Short: "Manage registered projects (stored in .assembly/settings.json)",
 }
 
 var projectName string
@@ -30,19 +30,15 @@ var projectListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List registered projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
 		s, err := store.Load()
 		if err != nil {
 			return err
 		}
-		names := make([]string, 0, len(s.Projects))
-		for n := range s.Projects {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		ps := make([]*store.Project, 0, len(names))
-		for _, n := range names {
-			ps = append(ps, s.Projects[n])
-		}
+		ps := sortedProjectViews(s, st)
 		output(ps, func() {
 			if len(ps) == 0 {
 				fmt.Println("no projects")
@@ -76,23 +72,22 @@ var projectAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		s, err := store.Load()
+		st, err := settings.Load()
 		if err != nil {
 			return err
 		}
-		if _, ok := s.Projects[name]; ok {
+		if _, ok := st.Projects[name]; ok {
 			return fmt.Errorf("project %q already exists", name)
 		}
-		p := &store.Project{Name: name, Path: path, Repo: repo}
 		if flagDryRun {
-			output(p, func() { fmt.Printf("would register project %s (%s) at %s\n", name, repo, path) })
+			fmt.Printf("would register project %s (%s) at %s\n", name, repo, path)
 			return nil
 		}
-		s.Projects[name] = p
-		if err := store.Save(s); err != nil {
+		st.Projects[name] = &settings.Project{Path: path, Repo: repo}
+		if err := settings.Save(st); err != nil {
 			return err
 		}
-		output(p, func() { fmt.Printf("registered project %s (%s) at %s\n", name, repo, path) })
+		fmt.Printf("registered project %s (%s) at %s\n", name, repo, path)
 		return nil
 	},
 }
@@ -102,17 +97,21 @@ var projectGetCmd = &cobra.Command{
 	Short: "Show one project with its worktrees",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
 		s, err := store.Load()
 		if err != nil {
 			return err
 		}
-		p, err := store.ResolveProject(s, args[0])
+		p, err := resolveProjectView(s, st, args[0])
 		if err != nil {
 			return err
 		}
 		wts := store.ProjectWorktrees(s, p.Name)
 		type view struct {
-			Project   *store.Project    `json:"project"`
+			Project   *projView         `json:"project"`
 			Worktrees []*store.Worktree `json:"worktrees"`
 		}
 		output(view{p, wts}, func() {
@@ -127,14 +126,18 @@ var projectGetCmd = &cobra.Command{
 
 var projectRemoveCmd = &cobra.Command{
 	Use:   "remove <project>",
-	Short: "Unregister a project (worktrees stay; use worktree remove to delete them)",
+	Short: "Unregister a project (worktrees stay; use --purge to delete them too)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
 		s, err := store.Load()
 		if err != nil {
 			return err
 		}
-		p, err := store.ResolveProject(s, args[0])
+		p, err := resolveProjectView(s, st, args[0])
 		if err != nil {
 			return err
 		}
@@ -159,7 +162,11 @@ var projectRemoveCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
 		}
+		delete(st.Projects, p.Name)
 		delete(s.Projects, p.Name)
+		if err := settings.Save(st); err != nil {
+			return err
+		}
 		if err := store.Save(s); err != nil {
 			return err
 		}

@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"assembly/internal/github"
+	"assembly/internal/settings"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -14,7 +14,6 @@ import (
 
 var (
 	watchInterval int
-	watchIssues   bool
 	watchPRs      bool
 	watchProject  string
 )
@@ -30,12 +29,16 @@ var watchCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		st, err := settings.Load()
+		if err != nil {
+			return err
+		}
 		if !github.Available() {
 			return fmt.Errorf("gh not found in PATH")
 		}
 		seen := loadSeenCommentCounts(s)
 		for {
-			n, err := pollOnce(s, seen)
+			n, err := pollOnce(st, s, seen)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			} else if n > 0 && !flagJSON {
@@ -48,7 +51,6 @@ var watchCmd = &cobra.Command{
 
 func init() {
 	watchCmd.Flags().IntVar(&watchInterval, "interval", 300, "poll interval in seconds")
-	watchCmd.Flags().BoolVar(&watchIssues, "issue", false, "watch Linear issues for updates")
 	watchCmd.Flags().BoolVar(&watchPRs, "pr", true, "watch PRs (comments, reviews, review requests)")
 	watchCmd.Flags().StringVar(&watchProject, "project", "", "limit to one project")
 	rootCmd.AddCommand(watchCmd)
@@ -72,21 +74,19 @@ func loadSeenCommentCounts(s *store.State) *pollState {
 	return ps
 }
 
-func pollOnce(s *store.State, seen *pollState) (int, error) {
+func pollOnce(st *settings.Settings, s *store.State, seen *pollState) (int, error) {
 	events := 0
-	projects := map[string]*store.Project{}
+	var projects []*projView
 	if watchProject != "" {
-		p, err := store.ResolveProject(s, watchProject)
+		p, err := resolveProjectView(s, st, watchProject)
 		if err != nil {
 			return 0, err
 		}
-		projects[p.Name] = p
+		projects = []*projView{p}
 	} else {
-		for n, p := range s.Projects {
-			projects[n] = p
-		}
+		projects = sortedProjectViews(s, st)
 	}
-	for _, p := range sortedProjects(projects) {
+	for _, p := range projects {
 		wts := store.ProjectWorktrees(s, p.Name)
 		for _, wt := range wts {
 			if wt.PR == 0 {
@@ -162,17 +162,4 @@ func appendWatchEvent(target, body string) {
 	if err := store.AppendMessage(m); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
-}
-
-func sortedProjects(m map[string]*store.Project) []*store.Project {
-	names := make([]string, 0, len(m))
-	for n := range m {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	out := make([]*store.Project, 0, len(names))
-	for _, n := range names {
-		out = append(out, m[n])
-	}
-	return out
 }

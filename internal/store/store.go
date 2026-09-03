@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -31,10 +32,9 @@ func MailboxDir() string {
 
 func Empty() *State {
 	return &State{
-		Projects:  map[string]*Project{},
+		Projects:  map[string]*ProjectState{},
 		Worktrees: map[string]*Worktree{},
 		Tasks:     map[string]*Task{},
-		NextTask:  1,
 	}
 }
 
@@ -51,16 +51,13 @@ func Load() (*State, error) {
 		return nil, fmt.Errorf("parse %s: %w", Path(), err)
 	}
 	if s.Projects == nil {
-		s.Projects = map[string]*Project{}
+		s.Projects = map[string]*ProjectState{}
 	}
 	if s.Worktrees == nil {
 		s.Worktrees = map[string]*Worktree{}
 	}
 	if s.Tasks == nil {
 		s.Tasks = map[string]*Task{}
-	}
-	if s.NextTask < 1 {
-		s.NextTask = 1
 	}
 	return s, nil
 }
@@ -81,26 +78,14 @@ func Save(s *State) error {
 }
 
 func NewTaskID(s *State) string {
-	id := fmt.Sprintf("t%d", s.NextTask)
-	s.NextTask++
-	return id
-}
-
-func ResolveProject(s *State, ref string) (*Project, error) {
-	if p, ok := s.Projects[ref]; ok {
-		return p, nil
-	}
-	for _, p := range s.Projects {
-		if p.Repo == ref || p.Path == ref {
-			return p, nil
+	max := 0
+	for id := range s.Tasks {
+		n, err := strconv.Atoi(strings.TrimPrefix(id, "t"))
+		if err == nil && n > max {
+			max = n
 		}
 	}
-	for _, p := range s.Projects {
-		if p.Repo != "" && filepath.Base(p.Repo) == ref {
-			return p, nil
-		}
-	}
-	return nil, fmt.Errorf("project %q not found", ref)
+	return fmt.Sprintf("t%d", max+1)
 }
 
 func ResolveWorktree(s *State, ref string) (*Worktree, error) {
