@@ -34,7 +34,7 @@ orchestrator and the single inbox for everything:
 - The user responds and decides in that one place.
 
 **Worker agents** are pi instances running inside herdr tabs. They run one task at a
-time (plan, research, build, review, respond). They report to the central instance
+time (plan, research, build, test, fix, review, respond). They report to the central instance
 through `foreman mailbox send`. The user may also open any tab and chat with that
 agent directly; decisions made there must still be reported back with
 `foreman mailbox send` + `--status`, so the central instance stays the source of truth.
@@ -81,7 +81,7 @@ foreman
     remove <worktree>        # full delete of worktree + its tasks; --force if dirty
   task
     list                     # --status --type --worktree (filters)
-    add                      # --type plan|research|build|review|respond
+    add                      # --type plan|research|build|test|fix|review|respond
                              # --note --slug --worktree
                              # --general | --thread (note kind)
     get <task-id>
@@ -126,6 +126,8 @@ foreman plan <note>      # = task add --type plan --note <note>
 foreman research <note>
 foreman build <note>
 foreman review <note>
+foreman test <note>       # = task add --type test --note <note> (test gate: verdict pass|fail)
+foreman fix <note>        # = task add --type fix --note <note> (implement findings)
 foreman respond <note>
   --general               # general note, no target
   --thread                # note tied to a review thread
@@ -165,16 +167,20 @@ branch, note kind, the note itself, issue ref if any, and the exact mailbox comm
 workers they may spawn `research` subtasks themselves, and every worker to send
 questions as `blocked` mailbox messages (`QUESTION:` + `OPTION:` lines) — the
 central agent offers the question to the user (never auto-asks) and replies via
-`mailbox send`. `task execute` refuses to start a **build** while a plan task in
-the same worktree is pending/in-progress/self-review/blocked.
-Plan/research workers write their report to `output/<task-id>-<label>.md` and
+`mailbox send`. `task execute` refuses to start a **build/test/fix** task while
+a plan task in the same worktree is pending/in-progress/self-review/blocked.
+Plan/research/test workers write their report to `output/<task-id>-<label>.md` and
 reference the path in their done message; their tabs close automatically on
-`done`/`failed` (blocked keeps the tab open for the answer). A plan task whose
+`done`/`failed` (blocked keeps the tab open for the answer). Test workers
+report `VERDICT: pass|fail`, review workers `FINDINGS: none` or numbered
+findings, and fix workers re-run tests locally before reporting done. A plan task whose
 worktree still has running research gets a "wait for the report paths" line in
 its prompt — end the turn, do not poll; the paths arrive as a pushed message.
 The central agent sends them once all research is done.
 The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
-the single skill — keep it in sync with behavior changes.
+the single skill — keep it in sync with behavior changes. The build-pipeline
+skill (`.agents/skills/build-pipeline/`) drives the gated pipeline flow
+(plan → build → test → review with a fix loop); keep it in sync too.
 
 ## Core flow
 
@@ -207,7 +213,7 @@ the single skill — keep it in sync with behavior changes.
 
 ## Task model
 
-- `type`: plan | research | build | review | respond
+- `type`: plan | research | build | test | fix | review | respond
 - Every task belongs to a worktree; every worktree belongs to a project.
 - Task ID + slug must be unique and stable (used by mailbox, tabs, and labels).
 
