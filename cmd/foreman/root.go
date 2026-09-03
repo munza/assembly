@@ -115,7 +115,7 @@ func tableOutput(rows any) {
 	header := make([]string, 0, len(cols))
 	for _, c := range cols {
 		if !c.hide {
-			header = append(header, c.name)
+			header = append(header, bold(c.name))
 		}
 	}
 	fmt.Fprintln(w, strings.Join(header, "\t"))
@@ -156,4 +156,13 @@ func containsAny(s string, chars string) bool {
 		}
 	}
 	return false
+}
+
+// bold wraps s in ANSI bold, guarded by tabwriter.Escape so the codes do not
+// count toward column width. Disabled when NO_COLOR is set.
+func bold(s string) string {
+	if os.Getenv("NO_COLOR") != "" {
+		return s
+	}
+	return string(tabwriter.Escape) + "\x1b[1m" + s + "\x1b[0m" + string(tabwriter.Escape)
 }
