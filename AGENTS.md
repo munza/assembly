@@ -191,8 +191,13 @@ configuration, not runtime state:
 }
 ```
 
-- `${VAR}` in any value expands from the environment **at read time** (`config.Expand`).
-  Files keep the raw reference, so saving never clobbers `${...}` entries.
+- At startup every command loads `.assembly/.env` into the process environment
+  (godotenv; existing variables win, missing file ignored). `${VAR}` in any value
+  then expands at read time (`config.Expand`). Files keep the raw reference, so
+  saving never clobbers `${...}` entries.
+- Secrets belong in `.assembly/.env` (gitignored); `settings.json` stays
+  secret-free and references them. Workers resolve it too — `FOREMAN_STATE_DIR`
+  points them at the same `.assembly/` dir.
 - Projects are settings (name → path + repo). Paths are absolute — `project add`
   writes them that way.
 - Runtime per-project data (herdr workspace ID) stays in `state.json`, not settings.
@@ -269,3 +274,5 @@ These apply to every change to this repo, human or agent:
     (e.g. `--dry-run`) that inherit across every subcommand for free.
   - `fsnotify/fsnotify` in `internal/watchman`: stdlib has no cross-platform
     file-change notification primitive.
+  - `joho/godotenv` in `internal/config`: stdlib has no dotenv parser, and
+    edge cases (export prefixes, quoting, multiline) are worth getting right.
