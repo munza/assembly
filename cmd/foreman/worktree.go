@@ -158,7 +158,7 @@ func newWorktreeCmd() *cobra.Command {
 					return err
 				}
 			}
-			wsID, path, err := herdr.WorktreeCreate(p.WorkspaceID, slug, addBase)
+			wsID, path, rootTabID, err := herdr.WorktreeCreate(p.WorkspaceID, slug, addBase)
 			if err != nil {
 				return err
 			}
@@ -169,6 +169,7 @@ func newWorktreeCmd() *cobra.Command {
 				Branch:      slug,
 				Path:        path,
 				WorkspaceID: wsID,
+				RootTabID:   rootTabID,
 				Status:      store.WtPlanning,
 			}
 			s.Worktrees[slug] = wt

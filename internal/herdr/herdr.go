@@ -61,24 +61,25 @@ func WorkspaceCreate(cwd, label string) (string, error) {
 	return id, nil
 }
 
-func WorktreeCreate(workspaceID, branch, base string) (string, string, error) {
+func WorktreeCreate(workspaceID, branch, base string) (string, string, string, error) {
 	args := []string{"worktree", "create", "--workspace", workspaceID, "--branch", branch}
 	if base != "" {
 		args = append(args, "--base", base)
 	}
 	res, err := RunJSON(args...)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	id := str(res, "result", "workspace", "workspace_id")
 	if id == "" {
-		return "", "", fmt.Errorf("herdr worktree create: no workspace_id in response")
+		return "", "", "", fmt.Errorf("herdr worktree create: no workspace_id in response")
 	}
 	path := str(res, "result", "workspace", "cwd")
 	if path == "" {
 		path = str(res, "result", "cwd")
 	}
-	return id, path, nil
+	tabID := str(res, "result", "tab", "tab_id")
+	return id, path, tabID, nil
 }
 
 func WorkspaceClose(id string) error {
@@ -120,8 +121,13 @@ func TabClose(tabID string) error {
 	return err
 }
 
-func AgentStart(name, paneID string) error {
-	_, err := RunJSON("agent", "start", name, "--kind", "pi", "--pane", paneID)
+func AgentStart(name, paneID string, agentArgs ...string) error {
+	args := []string{"agent", "start", name, "--kind", "pi", "--pane", paneID}
+	if len(agentArgs) > 0 {
+		args = append(args, "--")
+		args = append(args, agentArgs...)
+	}
+	_, err := RunJSON(args...)
 	return err
 }
 

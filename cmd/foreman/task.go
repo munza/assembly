@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"assembly/internal/config"
 	"assembly/internal/herdr"
 	"assembly/internal/store"
 
@@ -151,6 +152,17 @@ func newTaskCmd() *cobra.Command {
 			if bin == "foreman" {
 				fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; build it with: go build -o %s ./cmd/foreman\n", filepath.Join(store.Dir(), "bin", "foreman"))
 			}
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			var piArgs []string
+			if cfg.Pi.Model != "" {
+				piArgs = append(piArgs, "--model", cfg.Pi.Model)
+			}
+			if cfg.Pi.Thinking != "" {
+				piArgs = append(piArgs, "--thinking", cfg.Pi.Thinking)
+			}
 			prompt := buildPrompt(t, wt, bin)
 			stateDir, err := filepath.Abs(store.Dir())
 			if err != nil {
@@ -159,21 +171,36 @@ func newTaskCmd() *cobra.Command {
 			env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
 			if flagDryRun {
 				fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
-				fmt.Println("would run: " + planRun("herdr", "agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"))
+				startArgs := []string{"agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"}
+				if len(piArgs) > 0 {
+					startArgs = append(startArgs, "--")
+					startArgs = append(startArgs, piArgs...)
+				}
+				fmt.Println("would run: " + planRun("herdr", startArgs...))
 				fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
 				fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
+				if wt.RootTabID != "" {
+					fmt.Println("would run: " + planRun("herdr", "tab", "close", wt.RootTabID))
+				}
 				return nil
 			}
 			tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
 			if err != nil {
 				return err
 			}
-			if err := herdr.AgentStart(name, paneID); err != nil {
+			if err := herdr.AgentStart(name, paneID, piArgs...); err != nil {
 				_ = herdr.TabClose(tabID)
 				return err
 			}
 			if err := herdr.AgentPrompt(name, prompt); err != nil {
 				return err
+			}
+			if wt.RootTabID != "" {
+				if err := herdr.TabClose(wt.RootTabID); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: could not close root tab %s: %v\n", wt.RootTabID, err)
+				} else {
+					wt.RootTabID = ""
+				}
 			}
 			t.TabID, t.PaneID, t.AgentName = tabID, paneID, name
 			t.Status = store.TaskInProgress

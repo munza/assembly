@@ -35,6 +35,7 @@ type Worktree struct {
 	Branch      string `json:"branch"`
 	Path        string `json:"path"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
+	RootTabID   string `json:"root_tab_id,omitempty"`
 	Status      string `json:"status"`
 	PR          int    `json:"pr,omitempty"`
 }
