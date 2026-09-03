@@ -99,9 +99,9 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 					appendWorktreeEvent(wt, body)
 					events += n
 					wt.SeenComments = count
-					if updateWorktreeFromPR(s, wt, v) {
-						events++
-					}
+				}
+				if updateWorktreeFromPR(s, wt, v) {
+					events++
 				}
 			}
 			prList, err := git.ReviewRequested(repo)
@@ -142,11 +142,36 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 		next = store.WtAwaitingReview
 	}
 	if next != wt.Status {
-		appendWorktreeEvent(wt, fmt.Sprintf("status %s -> %s (from GitHub)", wt.Status, next))
+		msg := fmt.Sprintf("status %s -> %s (from GitHub)", wt.Status, next)
+		if next == store.WtReadyForMerge {
+			if who := approvalSummary(v); who != "" {
+				msg += " — " + who
+			}
+		}
+		appendWorktreeEvent(wt, msg)
 		wt.Status = next
 		return true
 	}
 	return false
+}
+
+func approvalSummary(v map[string]any) string {
+	reviews, _ := v["reviews"].([]any)
+	latest := map[string]string{}
+	for _, r := range reviews {
+		rm, _ := r.(map[string]any)
+		login := authorLogin(rm)
+		state, _ := rm["state"].(string)
+		if login != "" && (state == "APPROVED" || state == "CHANGES_REQUESTED") {
+			latest[login] = state
+		}
+	}
+	var parts []string
+	for login, state := range latest {
+		parts = append(parts, fmt.Sprintf("@%s %s", login, strings.ToLower(state)))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
 }
 
 func isSelfComment(idAny any, self []int) bool {
