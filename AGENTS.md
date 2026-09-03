@@ -120,11 +120,14 @@ foreman respond <note>
 
 One command serves both directions. Sender is detected by comparing the shell's
 `HERDR_PANE_ID` with the task's stored pane ID:
-
 - **Worker side** (runs inside the task's tab): `foreman mailbox send <id> <msg>
   --status ...` appends an unread message for the foreman and updates task status.
 - **Foreman side** (anywhere else): the message is recorded and also delivered
   into the worker's tab via `herdr agent prompt`.
+- Workers report with the foreman binary, not `go run`: `task execute` injects
+  `FOREMAN_BIN` (usually `.assembly/bin/foreman`, built once with
+  `go build -o .assembly/bin/foreman ./cmd/foreman`) and embeds the full path
+  in the worker prompt.
 - `foreman mailbox inbox` prints messages and marks the shown ones read.
   `--follow` keeps watching the mailbox dir (fsnotify) for new messages.
 - Workers must have the `foreman` binary on PATH (install with
@@ -134,8 +137,9 @@ One command serves both directions. Sender is detected by comparing the shell's
 
 `task execute` spawns pi with a prompt that states: task ID, type, worktree slug,
 branch, note kind, the note itself, issue ref if any, and the exact mailbox command
-for reporting `in-progress|self-review|done|blocked|failed`. Keep this contract in
-sync with the foreman skill when it is written.
+(using the `FOREMAN_BIN` binary path) for reporting
+`in-progress|self-review|done|blocked|failed`. The foreman skill lives at
+`.agents/skills/foreman/` — keep it in sync with behavior changes.
 
 ## Core flow
 

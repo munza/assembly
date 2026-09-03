@@ -142,14 +142,18 @@ var taskExecuteCmd = &cobra.Command{
 			label = t.Type + "-" + t.ID
 		}
 		name := agentName(label)
-		prompt := buildPrompt(t, wt)
+		bin := foremanBin()
+		if bin == "foreman" {
+			fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; build it with: go build -o %s ./cmd/foreman\n", filepath.Join(store.Dir(), "bin", "foreman"))
+		}
+		prompt := buildPrompt(t, wt, bin)
 		stateDir, err := filepath.Abs(store.Dir())
 		if err != nil {
 			return err
 		}
-		env := map[string]string{"FOREMAN_STATE_DIR": stateDir}
+		env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
 		if flagDryRun {
-			fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir))
+			fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
 			fmt.Println("would run: " + planRun("herdr", "agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"))
 			fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
 			fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
@@ -330,6 +334,19 @@ func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error)
 	return t, nil
 }
 
+func foremanBin() string {
+	if b := os.Getenv("FOREMAN_BIN"); b != "" {
+		return b
+	}
+	candidate := filepath.Join(store.Dir(), "bin", "foreman")
+	if _, err := os.Stat(candidate); err == nil {
+		if abs, err := filepath.Abs(candidate); err == nil {
+			return abs
+		}
+	}
+	return "foreman"
+}
+
 func resolveWorktreeForTask(s *store.State, ref string) (*store.Worktree, error) {
 	if ref != "" {
 		return store.ResolveWorktree(s, ref)
@@ -342,7 +359,7 @@ func resolveWorktreeForTask(s *store.State, ref string) (*store.Worktree, error)
 	return nil, fmt.Errorf("pass --worktree (or have exactly one worktree)")
 }
 
-func buildPrompt(t *store.Task, wt *store.Worktree) string {
+func buildPrompt(t *store.Task, wt *store.Worktree, bin string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are worker task %s (%s) in git worktree %q (branch %s).", t.ID, t.Type, wt.Slug, wt.Branch)
 	if t.NoteKind != "" {
@@ -350,9 +367,9 @@ func buildPrompt(t *store.Task, wt *store.Worktree) string {
 	}
 	fmt.Fprintf(&b, "\nTask: %s\n", t.Note)
 	if wt.IssueID != "" {
-		fmt.Fprintf(&b, "Issue: %s (run `foreman issue get %s` for details).\n", wt.IssueID, wt.IssueID)
+		fmt.Fprintf(&b, "Issue: %s (run `%s issue get %s` for details).\n", wt.IssueID, bin, wt.IssueID)
 	}
-	fmt.Fprintf(&b, "Work in the current directory only. Report progress with: foreman mailbox send %s \"<summary>\" --status in-progress|self-review|done|blocked|failed\n", t.ID)
+	fmt.Fprintf(&b, "Work in the current directory only. Report progress with: %s mailbox send %s \"<summary>\" --status in-progress|self-review|done|blocked|failed\n", bin, t.ID)
 	return b.String()
 }
 
