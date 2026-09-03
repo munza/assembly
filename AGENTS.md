@@ -224,8 +224,8 @@ configuration, not runtime state:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
     project, issue, worktree, task, pr, mailbox, watch).
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
-  - `internal/herdr/`, `internal/linear/`, `internal/github/`, `internal/git/` —
-    thin wrappers.
+  - `internal/git/` — local git helpers plus GitHub PR calls via `gh`.
+  - `internal/herdr/`, `internal/linear/` — thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
   - `internal/watchman/` — event watching (`fsnotify`).
 - Prefer thin wrappers: foreman shells out to `git`, `herdr`, `gh` (GitHub), and the
