@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -207,6 +208,22 @@ func PromptText(m *store.Message) string {
 	}
 	if m.Status != "" {
 		head += " [" + m.Status + "]"
+	}
+	if m.Worktree != "" {
+		head += " " + m.Worktree
+		var inner []string
+		if m.Project != "" {
+			inner = append(inner, m.Project)
+		}
+		if m.IssueID != "" {
+			inner = append(inner, m.IssueID)
+		}
+		if len(inner) > 0 {
+			head += " (" + strings.Join(inner, ", ") + ")"
+		}
+		if m.TabLabel != "" {
+			head += " tab " + m.TabLabel
+		}
 	}
 	body := m.Body
 	if len(body) > 4000 {

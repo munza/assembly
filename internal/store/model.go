@@ -54,13 +54,17 @@ type Task struct {
 }
 
 type Message struct {
-	ID     string    `json:"id"`
-	TaskID string    `json:"task_id,omitempty"`
-	From   string    `json:"from"`
-	Body   string    `json:"body"`
-	Status string    `json:"status,omitempty"`
-	Time   time.Time `json:"time"`
-	Read   bool      `json:"read"`
+	ID       string    `json:"id"`
+	TaskID   string    `json:"task_id,omitempty"`
+	From     string    `json:"from"`
+	Body     string    `json:"body"`
+	Status   string    `json:"status,omitempty"`
+	Project  string    `json:"project,omitempty"`
+	Worktree string    `json:"worktree,omitempty"`
+	IssueID  string    `json:"issue_id,omitempty"`
+	TabLabel string    `json:"tab_label,omitempty"`
+	Time     time.Time `json:"time"`
+	Read     bool      `json:"read"`
 }
 
 type State struct {

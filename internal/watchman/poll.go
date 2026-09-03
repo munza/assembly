@@ -72,7 +72,7 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 				}
 				if count > seen[key] {
 					if n := count - seen[key]; n > 0 {
-						appendEvent(wt.Slug, fmt.Sprintf("%d new comment(s)/review(s) on PR #%d (%s)", n, wt.PR, key))
+						appendWorktreeEvent(wt, fmt.Sprintf("%d new comment(s)/review(s) on PR #%d (%s)", n, wt.PR, key))
 						events += n
 					}
 					seen[key] = count
@@ -88,7 +88,7 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 					key := fmt.Sprintf("%s#%d-rr", name, int(num))
 					if seen[key] == 0 {
 						title, _ := pr["title"].(string)
-						appendEvent(name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
+					appendEvent(name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
 						seen[key] = 1
 						events++
 					}
@@ -119,7 +119,7 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 		next = store.WtAwaitingReview
 	}
 	if next != wt.Status {
-		appendEvent(wt.Slug, fmt.Sprintf("status %s -> %s (from GitHub)", wt.Status, next))
+		appendWorktreeEvent(wt, fmt.Sprintf("status %s -> %s (from GitHub)", wt.Status, next))
 		wt.Status = next
 		return true
 	}
@@ -127,7 +127,14 @@ func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) 
 }
 
 func appendEvent(target, body string) {
-	m := &store.Message{From: "watch", TaskID: target, Body: body}
+	m := &store.Message{From: "watch", TaskID: target, Project: target, Body: body}
+	if err := store.AppendMessage(m); err != nil {
+		logf("append event: %v", err)
+	}
+}
+
+func appendWorktreeEvent(wt *store.Worktree, body string) {
+	m := &store.Message{From: "watch", TaskID: wt.Slug, Project: wt.Project, Worktree: wt.Slug, IssueID: wt.IssueID, Body: body}
 	if err := store.AppendMessage(m); err != nil {
 		logf("append event: %v", err)
 	}

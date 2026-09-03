@@ -281,7 +281,9 @@ Both files are created lazily on first write — an empty `.assembly/` with only
 
 - `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace IDs.
   Writes are atomic (tmp + rename). It never exists until the first write.
-- `.assembly/mailbox/<id>.json` holds one message per file. Workers append new
+- `.assembly/mailbox/<id>.json` holds one message per file. Messages carry
+  context (project, worktree, issue id, tab label) alongside `task_id` so they
+  relate directly to reports and sibling tasks. Workers append new
   files — no read-modify-write races between parallel agents.
 - `FOREMAN_STATE_DIR` env var overrides the state directory. `task execute`
   injects it into worker tabs via `herdr tab create --env`, because workers run

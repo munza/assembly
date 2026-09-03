@@ -91,6 +91,10 @@ func newMailboxCmd() *cobra.Command {
 				return fmt.Errorf("done message must mention the report file path under output/; write the report, then resend including the path")
 			}
 			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
+			if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
+				m.Project, m.Worktree, m.IssueID = wt.Project, wt.Slug, wt.IssueID
+				m.TabLabel = tabLabel(t)
+			}
 			if flagDryRun {
 				fmt.Printf("would record message from %s for task %s: %s\n", from, t.ID, oneLine(args[1]))
 				if from == "foreman" && t.AgentName != "" {
@@ -182,5 +186,27 @@ func printMessage(m *store.Message) {
 	if m.Status != "" {
 		status = " [" + m.Status + "]"
 	}
-	fmt.Printf("%s  %s  task %s%s\n  %s\n", m.Time.Local().Format(time.RFC3339), m.From, m.TaskID, status, m.Body)
+	fmt.Printf("%s  %s  task %s%s%s\n  %s\n", m.Time.Local().Format(time.RFC3339), m.From, m.TaskID, status, messageContext(m), m.Body)
+}
+
+func messageContext(m *store.Message) string {
+	if m.Worktree == "" && m.Project == "" && m.IssueID == "" && m.TabLabel == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("  " + m.Worktree)
+	var inner []string
+	if m.Project != "" {
+		inner = append(inner, m.Project)
+	}
+	if m.IssueID != "" {
+		inner = append(inner, m.IssueID)
+	}
+	if len(inner) > 0 {
+		b.WriteString(" (" + strings.Join(inner, ", ") + ")")
+	}
+	if m.TabLabel != "" {
+		b.WriteString(" tab " + m.TabLabel)
+	}
+	return b.String()
 }
