@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -140,15 +141,22 @@ func newWorktreeCmd() *cobra.Command {
 			if !herdr.Available() {
 				return fmt.Errorf("herdr not found in PATH")
 			}
-			if flagDryRun {
-				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, slug, store.WtPlanning)
-				if p.WorkspaceID == "" {
-					fmt.Println("would run: " + planRun("herdr", "workspace", "create", "--cwd", p.Path, "--label", p.Name, "--no-focus"))
+			if p.WorkspaceID == "" {
+				if id := findWorkspaceByRoot(p.Path); id != "" {
+					fmt.Printf("using existing workspace %s for project %s\n", id, p.Name)
+					p.WorkspaceID = id
+					if !flagDryRun {
+						if err := setProjectWorkspace(s, p.Name, id); err != nil {
+							return err
+						}
+					}
 				}
-				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", slug, "--label", slug))
-				return nil
 			}
 			if p.WorkspaceID == "" {
+				if flagDryRun {
+					fmt.Println("would run: " + planRun("herdr", "workspace", "create", "--cwd", p.Path, "--label", p.Name, "--no-focus"))
+					return nil
+				}
 				id, err := herdr.WorkspaceCreate(p.Path, p.Name)
 				if err != nil {
 					return err
@@ -157,6 +165,11 @@ func newWorktreeCmd() *cobra.Command {
 				if err := setProjectWorkspace(s, p.Name, id); err != nil {
 					return err
 				}
+			}
+			if flagDryRun {
+				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, slug, store.WtPlanning)
+				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", slug, "--label", slug))
+				return nil
 			}
 			wsID, path, rootTabID, err := herdr.WorktreeCreate(p.WorkspaceID, slug, addBase)
 			if err != nil {
@@ -334,6 +347,42 @@ func newWorktreeCmd() *cobra.Command {
 	}
 	cmd.AddCommand(list, add, get, update, teardown, remove)
 	return cmd
+}
+
+func findWorkspaceByRoot(path string) string {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		target = path
+	}
+	wss, err := herdr.Workspaces()
+	if err != nil {
+		return ""
+	}
+	for _, ws := range wss {
+		wt, _ := ws["worktree"].(map[string]any)
+		if wt == nil {
+			continue
+		}
+		if linked, _ := wt["is_linked_worktree"].(bool); linked {
+			continue
+		}
+		root, _ := wt["repo_root"].(string)
+		if root == "" {
+			root, _ = wt["checkout_path"].(string)
+		}
+		if root == "" {
+			continue
+		}
+		if resolved, err := filepath.EvalSymlinks(root); err == nil {
+			root = resolved
+		}
+		if root == target {
+			if id, _ := ws["workspace_id"].(string); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
 }
 
 func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {

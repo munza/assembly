@@ -145,3 +145,18 @@ func AgentPrompt(name, text string) error {
 	_, err := RunJSON("agent", "prompt", name, text)
 	return err
 }
+
+func Workspaces() ([]map[string]any, error) {
+	res, err := RunJSON("workspace", "list")
+	if err != nil {
+		return nil, err
+	}
+	list, _ := dig(res, "result", "workspaces").([]any)
+	out := make([]map[string]any, 0, len(list))
+	for _, w := range list {
+		if m, ok := w.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
