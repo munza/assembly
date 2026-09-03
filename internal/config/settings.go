@@ -12,8 +12,9 @@ import (
 )
 
 type Project struct {
-	Path string `json:"path"`
-	Repo string `json:"repo"`
+	Path        string `json:"path"`
+	Repo        string `json:"repo"`
+	IssuePrefix string `json:"issue_prefix,omitempty"`
 }
 
 type Linear struct {

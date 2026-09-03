@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 
 func newProjectCmd() *cobra.Command {
 	var addName string
+	var addIssuePrefix string
 	var removePurge bool
 
 	list := &cobra.Command{
@@ -76,11 +78,19 @@ func newProjectCmd() *cobra.Command {
 			if _, ok := st.Projects[name]; ok {
 				return fmt.Errorf("project %q already exists", name)
 			}
+			if addIssuePrefix != "" {
+				if _, err := regexp.Compile(addIssuePrefix); err != nil {
+					return fmt.Errorf("invalid --issue-prefix %q: %v", addIssuePrefix, err)
+				}
+			}
 			if flagDryRun {
 				fmt.Printf("would register project %s (%s) at %s\n", name, repo, path)
+				if addIssuePrefix != "" {
+					fmt.Printf("issue_prefix: %s\n", addIssuePrefix)
+				}
 				return nil
 			}
-			st.Projects[name] = &config.Project{Path: path, Repo: repo}
+			st.Projects[name] = &config.Project{Path: path, Repo: repo, IssuePrefix: addIssuePrefix}
 			if err := config.Save(st); err != nil {
 				return err
 			}
@@ -89,6 +99,7 @@ func newProjectCmd() *cobra.Command {
 		},
 	}
 	add.Flags().StringVar(&addName, "name", "", "project name (defaults to directory name)")
+	add.Flags().StringVar(&addIssuePrefix, "issue-prefix", "", "regex matching this project's Linear issue IDs, e.g. ^(ENG|TAW)-")
 
 	get := &cobra.Command{
 		Use:   "get <project>",
@@ -114,6 +125,9 @@ func newProjectCmd() *cobra.Command {
 			}
 			output(view{p, wts}, func() {
 				fmt.Printf("name       %s\nrepo       %s\npath       %s\nworkspace  %s\n", p.Name, p.Repo, p.Path, p.WorkspaceID)
+				if p.IssuePrefix != "" {
+					fmt.Printf("issue_prefix  %s\n", p.IssuePrefix)
+				}
 				for _, wt := range wts {
 					fmt.Printf("worktree   %s (%s, %s)\n", wt.Slug, wt.Branch, wt.Status)
 				}
@@ -192,13 +206,14 @@ type projView struct {
 	Name        string `json:"name"`
 	Path        string `json:"path"`
 	Repo        string `json:"repo"`
+	IssuePrefix string `json:"issue_prefix,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 }
 
 func projectViews(s *store.State, st *config.Settings) map[string]*projView {
 	out := map[string]*projView{}
 	for name, p := range st.Projects {
-		v := &projView{Name: name, Path: p.Path, Repo: p.Repo}
+		v := &projView{Name: name, Path: p.Path, Repo: p.Repo, IssuePrefix: p.IssuePrefix}
 		if ps, ok := s.Projects[name]; ok && ps != nil {
 			v.WorkspaceID = ps.WorkspaceID
 		}
@@ -253,6 +268,39 @@ func resolveTargetProject(s *store.State, st *config.Settings, name string) (*pr
 		}
 	}
 	return nil, fmt.Errorf("cwd is not inside a registered project; pass --project")
+}
+
+func projectsByIssuePrefix(st *config.Settings, issueID string) ([]string, error) {
+	var names []string
+	for name, p := range st.Projects {
+		if p.IssuePrefix == "" {
+			continue
+		}
+		re, err := regexp.Compile(p.IssuePrefix)
+		if err != nil {
+			return nil, fmt.Errorf("project %s has invalid issue_prefix %q: %v", name, p.IssuePrefix, err)
+		}
+		if re.MatchString(issueID) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func checkIssuePrefix(st *config.Settings, p *projView, issueID string) error {
+	proj, ok := st.Projects[p.Name]
+	if !ok || proj.IssuePrefix == "" {
+		return nil
+	}
+	re, err := regexp.Compile(proj.IssuePrefix)
+	if err != nil {
+		return fmt.Errorf("project %s has invalid issue_prefix %q: %v", p.Name, proj.IssuePrefix, err)
+	}
+	if !re.MatchString(issueID) {
+		return fmt.Errorf("issue %s does not match project %s issue_prefix %q", issueID, p.Name, proj.IssuePrefix)
+	}
+	return nil
 }
 
 func setProjectWorkspace(s *store.State, name, id string) error {

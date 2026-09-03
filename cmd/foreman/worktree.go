@@ -70,9 +70,30 @@ func newWorktreeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := resolveTargetProject(s, st, addProject)
-			if err != nil {
-				return err
+			var p *projView
+			if addProject != "" {
+				p, err = resolveProjectView(s, st, addProject)
+				if err != nil {
+					return err
+				}
+			} else {
+				matched, err := projectsByIssuePrefix(st, args[0])
+				if err != nil {
+					return err
+				}
+				if len(matched) == 1 {
+					p, err = resolveProjectView(s, st, matched[0])
+					if err != nil {
+						return err
+					}
+				} else if len(matched) > 1 {
+					return fmt.Errorf("issue %s matches issue_prefix of multiple projects: %s; pass --project", args[0], strings.Join(matched, ", "))
+				} else {
+					p, err = resolveTargetProject(s, st, "")
+					if err != nil {
+						return err
+					}
+				}
 			}
 			ref := args[0]
 			slug := strings.ToLower(ref)
@@ -80,6 +101,9 @@ func newWorktreeCmd() *cobra.Command {
 			if issueIDPattern.MatchString(ref) {
 				issueID = strings.ToUpper(ref)
 				slug = strings.ToLower(issueID)
+				if err := checkIssuePrefix(st, p, issueID); err != nil {
+					return err
+				}
 			}
 			if !isValidSlug(slug) {
 				return fmt.Errorf("%q is not a valid worktree slug (lowercase letters, digits, hyphens)", slug)
