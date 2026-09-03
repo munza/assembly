@@ -144,7 +144,7 @@ offer to dispatch a `respond` task.
 The `watchman` daemon is the always-on background half: it watches the mailbox
 and pushes every worker report and GitHub PR event into this tab as a
 `[watchman] ...` prompt, and polls GitHub (comments, reviews, review requests,
-PR state changes) every 300s. You never start it manually — any foreman command
+PR state changes) every 60s. You never start it manually — any foreman command
 from this tab boots it detached, bound to this pane, and it stops itself when
 the tab closes or the pi instance exits.
 

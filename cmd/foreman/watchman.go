@@ -32,7 +32,7 @@ func ensureWatchman() {
 		fmt.Fprintln(os.Stderr, "watchman: no binary found; build it with `go build -o .assembly/bin/ ./cmd/...`")
 		return
 	}
-	_, _, err := watchman.SpawnDetached(bin, watchman.Options{Interval: 300, PRs: true, ForemanPane: pane})
+	_, _, err := watchman.SpawnDetached(bin, watchman.Options{Interval: 60, PRs: true, ForemanPane: pane})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "watchman: %v\n", err)
 	}

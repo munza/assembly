@@ -56,7 +56,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&flagJSON, "json", false, "machine-readable JSON output")
 	root.PersistentFlags().BoolVar(&detached, "detached", false, "spawn a background instance instead of running in the foreground")
-	root.PersistentFlags().IntVar(&interval, "interval", 300, "GitHub poll interval in seconds (0 disables)")
+	root.PersistentFlags().IntVar(&interval, "interval", 60, "GitHub poll interval in seconds (0 disables)")
 	root.PersistentFlags().BoolVar(&prs, "pr", true, "watch PRs (comments, reviews, review requests)")
 	root.PersistentFlags().StringVar(&project, "project", "", "limit polling to one project")
 	root.PersistentFlags().StringVar(&foremanPane, "foreman-pane", "", "foreman tab pane ID for delivery (default: $HERDR_PANE_ID)")
