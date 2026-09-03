@@ -420,7 +420,7 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin string, researchPending 
 		fmt.Fprintf(&b, "Issue: %s (run `%s issue get %s` for details).\n", wt.IssueID, bin, wt.IssueID)
 	}
 	if t.Type == "plan" && len(researchPending) > 0 {
-		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet. Wait for a follow-up message containing their report paths, then plan using them.\n", strings.Join(researchPending, ", "))
+		fmt.Fprintf(&b, "Research tasks %s are still running. Do NOT plan yet and do NOT poll the mailbox. End your turn and wait: their report paths will be delivered into this tab as a new message; plan using them when it arrives.\n", strings.Join(researchPending, ", "))
 	}
 	if t.Type == "plan" || t.Type == "research" {
 		fmt.Fprintf(&b, "When finished, write your full report to `output/%s-%s.md` in the worktree root (create the dir), then send ONE final mailbox message containing that path with --status done. Your tab closes automatically.\n", t.ID, label)

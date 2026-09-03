@@ -21,6 +21,17 @@ func newRootCmd() *cobra.Command {
 		Use:          "foreman",
 		Short:        "Orchestrate projects, worktrees, and pi agents through herdr",
 		SilenceUsage: true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if !flagDryRun {
+				for c := cmd; c != nil; c = c.Parent() {
+					if c.Name() == "help" || c.Name() == "completion" {
+						return nil
+					}
+				}
+				ensureWatchman()
+			}
+			return nil
+		},
 	}
 	root.PersistentFlags().BoolVar(&flagJSON, "json", false, "machine-readable JSON output")
 	root.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "reads run normally; writes print what they would do")
@@ -32,7 +43,6 @@ func newRootCmd() *cobra.Command {
 		newTaskCmd(),
 		newPRCmd(),
 		newMailboxCmd(),
-		newWatchCmd(),
 		newStatusCmd(),
 	)
 	root.AddCommand(newAliasCmds()...)
