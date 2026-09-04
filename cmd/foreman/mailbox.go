@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"assembly/internal/mux"
 	"assembly/internal/store"
@@ -107,6 +108,9 @@ func newMailboxCmd() *cobra.Command {
 				}
 				return fmt.Errorf("done message must mention the report file path under output/; write the report, then resend including the path")
 			}
+			if err := checkGateMarkers(t.Type, args[1]); err != nil {
+				return err
+			}
 			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
 			if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
 				m.Project, m.Worktree, m.IssueID = wt.Project, wt.Slug, wt.IssueID
@@ -127,9 +131,13 @@ func newMailboxCmd() *cobra.Command {
 			}
 			if sendStatus != "" {
 				t.Status = sendStatus
-				if err := store.Save(s); err != nil {
-					return err
-				}
+			}
+			if workerSend && sendStatus == store.TaskDone {
+				recordDoneReport(s, t, args[1])
+				relayResearchReports(s, t)
+			}
+			if err := store.Save(s); err != nil {
+				return err
 			}
 			if workerSend && t.TabID != "" {
 				// done always closes the tab: the worker is finished. failed closes
@@ -158,6 +166,119 @@ func newMailboxCmd() *cobra.Command {
 	}
 	cmd.AddCommand(inbox, send, wait)
 	return cmd
+}
+
+// checkGateMarkers enforces the done-message contract the pipeline gates
+// parse: a test worker's done must open with a VERDICT: line, a review
+// worker's done must close with a FINDINGS: block. The prompt asks for
+// these, but workers drift (observed: a review ending "Clean.") — the
+// mailbox is where a malformed report bounces instead of silently
+// breaking the gate that reads it.
+func checkGateMarkers(typ, body string) error {
+	if typ == "test" {
+		first := body
+		if i := strings.IndexAny(first, "\r\n"); i >= 0 {
+				first = first[:i]
+			}
+		first = strings.TrimSpace(first)
+		if strings.HasPrefix(first, "VERDICT:") {
+				v := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(first, "VERDICT:")))
+				if v == "pass" || v == "fail" {
+					return nil
+				}
+			}
+		return fmt.Errorf("test done message must start with `VERDICT: pass` or `VERDICT: fail`; resend with the verdict on the first line")
+	}
+	if typ == "review" {
+		lines := strings.Split(body, "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(lines[i])
+			if !strings.HasPrefix(line, "FINDINGS:") {
+				continue
+				}
+			rest := strings.TrimSpace(strings.TrimPrefix(line, "FINDINGS:"))
+				if strings.EqualFold(rest, "none") {
+					return nil
+				}
+				if rest == "" {
+					for _, l := range lines[i+1:] {
+						l = strings.TrimSpace(l)
+						if len(l) >= 2 && l[0] >= '1' && l[0] <= '9' && (l[1] == '.' || l[1] == ')') {
+							return nil
+						}
+					}
+				}
+				break
+			}
+		return fmt.Errorf("review done message must end with `FINDINGS: none` or `FINDINGS:` followed by numbered findings; resend in that shape")
+	}
+	return nil
+}
+
+// recordDoneReport appends the output/ path from a plan/research/test done
+// message to the worktree's pipeline record, so report indexing survives
+// without the foreman remembering a manual `pipeline report` step. No-op
+// when no pipeline is registered (ad-hoc work).
+func recordDoneReport(s *store.State, t *store.Task, body string) {
+	if t.Type != "plan" && t.Type != "research" && t.Type != "test" {
+		return
+	}
+	p, ok := s.Pipelines[t.Worktree]
+	if !ok || p == nil {
+		return
+	}
+	path := ""
+	for _, f := range strings.Fields(body) {
+		if strings.Contains(f, "output/") {
+			path = f
+			break
+			}
+	}
+	if path == "" {
+		return
+	}
+	for _, r := range p.Reports {
+		if r == path {
+				return
+			}
+	}
+	p.Reports = append(p.Reports, path)
+	p.Updated = time.Now()
+}
+
+// relayResearchReports delivers the collected research report paths to a
+// running plan worker the moment the last research task reports done. The
+// plan worker's prompt told it to end its turn and wait for exactly this
+// message; before this hook, delivery depended on the foreman noticing,
+// and the plan tab sat idle until it did.
+func relayResearchReports(s *store.State, done *store.Task) {
+	if done.Type != "research" {
+		return
+	}
+	for _, t := range store.WorktreeTasks(s, done.Worktree) {
+		if t.Type == "research" && t.ID != done.ID && t.Status != store.TaskDone && t.Status != store.TaskFailed {
+			return
+		}
+	}
+	p, ok := s.Pipelines[done.Worktree]
+	if !ok || p == nil || len(p.Reports) == 0 {
+		return
+	}
+	for _, t := range store.WorktreeTasks(s, done.Worktree) {
+		if t.Type != "plan" || t.Status == store.TaskDone || t.Status == store.TaskFailed {
+			continue
+		}
+		if t.AgentName == "" || t.PaneID == "" {
+			continue
+		}
+		msg := "Research done, reports: " + strings.Join(p.Reports, ", ") + " — plan now."
+		if err := mux.AgentPrompt(t.AgentName, msg); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not relay research reports to plan task %s: %v\n", t.ID, err)
+				return
+		}
+		fmt.Printf("relayed %d report path(s) to waiting plan task %s\n", len(p.Reports), t.ID)
+		return
+	}
 }
 
 func closeTaskTab(s *store.State, t *store.Task) {
