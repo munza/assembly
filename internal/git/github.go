@@ -121,7 +121,15 @@ func PrView(repo string, number int, withComments bool) (map[string]any, error) 
 }
 
 func PRReviewComments(repo string, number int) ([]map[string]any, error) {
-	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments", repo, number))
+	return PRReviewCommentsFor(repo, number, 0)
+}
+
+func PRReviewCommentsFor(repo string, number, reviewID int) ([]map[string]any, error) {
+	path := fmt.Sprintf("repos/%s/pulls/%d/comments", repo, number)
+	if reviewID > 0 {
+		path = fmt.Sprintf("repos/%s/pulls/%d/reviews/%d/comments", repo, number, reviewID)
+	}
+	out, err := run("", "api", path)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +138,18 @@ func PRReviewComments(repo string, number int) ([]map[string]any, error) {
 		return nil, err
 	}
 	return cs, nil
+}
+
+func PRReviews(repo string, number int) ([]map[string]any, error) {
+	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/reviews", repo, number))
+	if err != nil {
+		return nil, err
+	}
+	var rs []map[string]any
+	if err := json.Unmarshal(out, &rs); err != nil {
+		return nil, err
+	}
+	return rs, nil
 }
 
 func PRComment(repo string, number int, body string) (string, int, error) {

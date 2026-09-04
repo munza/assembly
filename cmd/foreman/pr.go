@@ -329,7 +329,7 @@ func newPRCmd() *cobra.Command {
 			"current PR head (review checkouts are disposable -- local changes are\n" +
 			"discarded). Re-running after the author pushes is safe and cheap. `worktree\n" +
 			"remove pr-<N>` also deletes the fetched pr-<N> branch.",
-		Args:  cobra.ExactArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prNum, err := strconv.Atoi(args[0])
 			if err != nil || prNum <= 0 {
@@ -373,7 +373,7 @@ func newPRCmd() *cobra.Command {
 					names := make([]string, len(views))
 					for i, v := range views {
 						names[i] = v.Name
-				}
+					}
 					return fmt.Errorf("pass --project (%s)", strings.Join(names, ", "))
 				}
 			}
@@ -407,11 +407,107 @@ func newPRCmd() *cobra.Command {
 	}
 	checkout.Flags().StringVar(&checkoutProject, "project", "", "project name (defaults to the only registered project)")
 
+	var pendingRepo string
+	var pendingID int
+	pending := &cobra.Command{
+		Use:   "pending <pr-number>",
+		Short: "List reviews left pending on a PR, with bodies and inline comments",
+		Long: "Re-fetches reviews in GitHub's PENDING state for a PR — including their\n" +
+			"bodies, and with --id also that review's inline comments — so you can\n" +
+			"confirm exactly what will be published before running\n" +
+			"`pr review <N> --verdict <v> --submit <id>`. A pending review may have\n" +
+			"sat for a while or been hand-edited on GitHub; never trust memory over\n" +
+			"this listing.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prNum, err := strconv.Atoi(args[0])
+			if err != nil || prNum <= 0 {
+				return fmt.Errorf("%q is not a PR number", args[0])
+			}
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			repo := pendingRepo
+			if repo == "" {
+				if wt, ok := s.Worktrees[fmt.Sprintf("pr-%d", prNum)]; ok {
+					repo = st.Projects[wt.Project].Repo
+				} else if len(st.Projects) == 1 {
+					for _, p := range st.Projects {
+						repo = p.Repo
+					}
+				}
+			}
+			if repo == "" {
+				return fmt.Errorf("cannot resolve repo; pass --repo owner/name (or --project context)")
+			}
+			reviews, err := git.PRReviews(repo, prNum)
+			if err != nil {
+				return err
+			}
+			var pend []map[string]any
+			for _, r := range reviews {
+				if state, _ := r["state"].(string); state == "PENDING" {
+					pend = append(pend, r)
+				}
+			}
+			if len(pend) == 0 {
+				fmt.Printf("no pending reviews on PR #%d\n", prNum)
+				return nil
+			}
+			var sel map[string]any
+			if pendingID > 0 {
+				for _, r := range pend {
+					if id, _ := r["id"].(float64); int(id) == pendingID {
+						sel = r
+					}
+				}
+				if sel == nil {
+					return fmt.Errorf("review %d is not a pending review on PR #%d", pendingID, prNum)
+				}
+			}
+			type view struct {
+				Repo    string           `json:"repo"`
+				PR      int              `json:"pr"`
+				Review  map[string]any   `json:"review,omitempty"`
+				Reviews []map[string]any `json:"reviews"`
+				Inline  []map[string]any `json:"inline_comments,omitempty"`
+			}
+			v := view{Repo: repo, PR: prNum, Reviews: pend}
+			var inline []map[string]any
+			if sel != nil {
+				v.Review = sel
+				if in, ierr := git.PRReviewCommentsFor(repo, prNum, pendingID); ierr == nil {
+					inline = in
+					v.Inline = inline
+				}
+			}
+			output(v, func() {
+				for _, r := range pend {
+					id, _ := r["id"].(float64)
+					printPendingReview(r)
+					if sel != nil && int(id) == pendingID {
+						for _, ic := range inline {
+							printInlineComment(ic)
+						}
+					}
+				}
+			})
+			return nil
+		},
+	}
+	pending.Flags().StringVar(&pendingRepo, "repo", "", "repo (defaults to the pr-N worktree's project, or the single registered project)")
+	pending.Flags().IntVar(&pendingID, "id", 0, "show this pending review's inline comments too")
+
 	cmd := &cobra.Command{
 		Use:   "pr",
 		Short: "Create and inspect GitHub pull requests",
 	}
-	cmd.AddCommand(create, get, commentCmd, reviewCmd, checkout)
+	cmd.AddCommand(create, get, commentCmd, reviewCmd, checkout, pending)
 	return cmd
 }
 
@@ -466,6 +562,28 @@ func resolvePR(s *store.State, ref string) (*store.Worktree, int, error) {
 		return nil, 0, fmt.Errorf("worktree %s has no PR yet", wt.Slug)
 	}
 	return wt, wt.PR, nil
+}
+
+func printPendingReview(r map[string]any) {
+	id, _ := r["id"].(float64)
+	user, _ := r["user"].(map[string]any)
+	login, _ := user["login"].(string)
+	when, _ := r["submitted_at"].(string)
+	body, _ := r["body"].(string)
+	fmt.Printf("review %d  @%s  %s\n", int(id), login, when)
+	if strings.TrimSpace(body) != "" {
+		fmt.Printf("  body: %s\n", body)
+	}
+}
+
+func printInlineComment(ic map[string]any) {
+	path, _ := ic["path"].(string)
+	line, has := ic["line"].(float64)
+	if !has || line == 0 {
+		line, _ = ic["original_line"].(float64)
+	}
+	body, _ := ic["body"].(string)
+	fmt.Printf("  inline %s:%d: %s\n", path, int(line), body)
 }
 
 func printPR(v map[string]any) {
