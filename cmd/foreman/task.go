@@ -197,7 +197,11 @@ func newTaskCmd() *cobra.Command {
 			}
 			tabID, paneID, err := mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
 			if err != nil && wt.Path != "" {
-				if newID, newRootTab, openErr := mux.WorktreeOpen(wt.Path, wt.Slug); openErr == nil && newID != "" {
+				projWorkspaceID := ""
+				if ps, ok := s.Projects[wt.Project]; ok && ps != nil {
+					projWorkspaceID = ps.WorkspaceID
+				}
+				if newID, newRootTab, openErr := mux.WorktreeOpen(projWorkspaceID, wt.Path, wt.Slug); openErr == nil && newID != "" {
 					wt.WorkspaceID = newID
 					wt.RootTabID = newRootTab
 					_ = store.Save(s)

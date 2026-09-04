@@ -217,8 +217,12 @@ func TabCount(workspaceID string) int {
 	return len(list)
 }
 
-func WorktreeOpen(path, label string) (string, string, error) {
-	res, err := RunJSON("worktree", "open", "--path", path, "--label", label)
+func WorktreeOpen(workspaceID, path, label string) (string, string, error) {
+	args := []string{"worktree", "open", "--path", path, "--label", label}
+	if workspaceID != "" {
+		args = append(args, "--workspace", workspaceID)
+	}
+	res, err := RunJSON(args...)
 	if err != nil {
 		return "", "", err
 	}
