@@ -133,7 +133,13 @@ func newWorktreeCmd() *cobra.Command {
 			if _, ok := s.Worktrees[slug]; ok {
 				return fmt.Errorf("worktree %q already exists", slug)
 			}
-			branch := p.BranchPrefix + slug
+			// pr-<N> worktrees must attach to the exact branch name the review
+			// pipeline already fetched (`git fetch origin pull/<N>/head:pr-<N>`);
+			// prefixing it would create an unrelated branch instead.
+			branch := slug
+			if !prRefPattern.MatchString(slug) {
+				branch = p.BranchPrefix + slug
+			}
 			title := ""
 			if issueID != "" {
 				if issue, err := issue.GetIssue(issueID, config.LinearAPIKey()); err == nil {
