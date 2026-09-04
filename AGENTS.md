@@ -20,8 +20,10 @@ External systems:
 - **herdr** (`herdr.dev`) — the agent runtime. It owns workspaces, worktrees, tabs, panes,
   and agent lifecycle. Foreman drives herdr via its CLI (JSON output on stdout).
   Always capture IDs from JSON responses, never predict them.
-- **pi** — the agent harness. Worker agents are pi instances (each with the foreman
-  skill in `.agents/skills/`).
+- **harness** — the coding-agent runtime for workers (pi today; selectable via
+  settings `harness`, implementations in `internal/harness/`). Worker agents
+  run one task at a time (plan, research, build, test, fix, review, respond).
+  They report to the central instance through `foreman mailbox send`.
 
 ## Architecture
 
@@ -247,10 +249,7 @@ configuration, not runtime state:
     "api_key": "${LINEAR_API_KEY}",
     "workspace": "myteam"
   },
-  "pi": {
-    "model": "glm-5.3",
-    "thinking": "high"
-  },
+  "harness": "pi",
   "projects": {
     "igloo": {
       "path": "/Users/me/code/igloo",
@@ -261,8 +260,9 @@ configuration, not runtime state:
 }
 ```
 
-- `pi.model` / `pi.thinking` are passed to every worker as
-  `pi --model <m> --thinking <t>`; without them workers use the pi default.
+- `harness` selects the worker coding-agent harness (default `pi`);
+  harnesses live in `internal/harness/` (`pi.go`; add `claude.go` etc. there).
+  Each harness runs with its own defaults — no model/thinking overrides.
 - The project workspace is adopted, not duplicated: `worktree add` first looks
   for an existing herdr workspace whose non-linked repo root matches the
   project path (symlinks resolved); only when none exists does it create one.

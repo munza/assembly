@@ -11,6 +11,7 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/herdr"
+	"assembly/internal/harness"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -163,12 +164,9 @@ func newTaskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var piArgs []string
-			if cfg.Pi.Model != "" {
-				piArgs = append(piArgs, "--model", cfg.Pi.Model)
-			}
-			if cfg.Pi.Thinking != "" {
-				piArgs = append(piArgs, "--thinking", cfg.Pi.Thinking)
+			h, err := harness.For(cfg.Harness)
+			if err != nil {
+				return err
 			}
 			stateDir, err := filepath.Abs(store.Dir())
 			if err != nil {
@@ -178,10 +176,10 @@ func newTaskCmd() *cobra.Command {
 			env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
 			if flagDryRun {
 				fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
-				startArgs := []string{"agent", "start", name, "--kind", "pi", "--pane", "<new-pane>"}
-				if len(piArgs) > 0 {
+				startArgs := []string{"agent", "start", name, "--kind", h.Kind, "--pane", "<new-pane>"}
+				if len(h.Args) > 0 {
 					startArgs = append(startArgs, "--")
-					startArgs = append(startArgs, piArgs...)
+					startArgs = append(startArgs, h.Args...)
 				}
 				fmt.Println("would run: " + planRun("herdr", startArgs...))
 				fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
@@ -203,7 +201,7 @@ func newTaskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := herdr.AgentStart(name, paneID, piArgs...); err != nil {
+			if err := herdr.AgentStart(name, paneID, h.Kind, h.Args...); err != nil {
 				_ = herdr.TabClose(tabID)
 				return err
 			}

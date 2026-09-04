@@ -22,14 +22,9 @@ type Linear struct {
 	Workspace string `json:"workspace"`
 }
 
-type Pi struct {
-	Model    string `json:"model"`
-	Thinking string `json:"thinking"`
-}
-
 type Settings struct {
 	Linear   Linear              `json:"linear"`
-	Pi       Pi                  `json:"pi"`
+	Harness  string              `json:"harness,omitempty"`
 	Projects map[string]*Project `json:"projects"`
 }
 

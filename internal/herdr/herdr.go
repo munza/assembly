@@ -131,8 +131,8 @@ func TabCloseDetached(tabID string) {
 	_ = cmd.Start()
 }
 
-func AgentStart(name, paneID string, agentArgs ...string) error {
-	args := []string{"agent", "start", name, "--kind", "pi", "--pane", paneID}
+func AgentStart(name, paneID, kind string, agentArgs ...string) error {
+	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID}
 	if len(agentArgs) > 0 {
 		args = append(args, "--")
 		args = append(args, agentArgs...)
