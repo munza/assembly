@@ -56,20 +56,19 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
 3. **Blocked workers pause the pipeline**: relay the QUESTION/OPTION block as
    usual (see the foreman skill) and resume the same round after answering.
    Blocked rounds do not count toward the cap.
-4. **Failed workers**: tell the user, offer re-run (`task update <id> --status
-   pending` + `task execute <id>`) or abort. Never silently retry.
+4. **Failed workers**: tell the user, offer re-run (`task rerun <id>`)
+   or abort. Never silently retry.
 5. **Resume from state**: `task list --worktree <slug>` — a done stage counts
-   as done; the round number is the highest `r<N>` slug suffix + 1. Never
-   re-run a stage that reported done unless a later FIX invalidated it.
+   as done; loop rounds are the auto-appended `-rN` slug suffixes (`test`,
+   `test-r2`, ...), so stage recipes always pass a bare stem and `task add`
+   rounds it. Never re-run a stage that reported done unless a later FIX
+   invalidated it.
 6. Reports live in `.assembly/output/<issue-id|worktree-slug>-<label>.md`; worker done
    messages must mention the path. Test-gate workers report
    `VERDICT: pass|fail`; review workers `FINDINGS: none` or numbered findings.
 7. Never skip a gate, never merge or force-push yourself, never open or update
    a PR while any pipeline task in the worktree is unfinished.
-8. **Tab housekeeping**: only plan/research/test tabs close themselves on
-   done. When a build/review/fix/respond stage reports done, immediately
-   `task teardown <id>` to close its tab (record is kept).
-9. **Pause and resume**: if the user declines, breaks, or ignores any
+8. **Pause and resume**: if the user declines, breaks, or ignores any
    question, do not drop it — record it with
    `worktree hold <slug> --note "<the pending decision: question, options,
    comment quotes>"` and say the pipeline is on hold. When the user asks to
@@ -79,7 +78,7 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    marks tasks of held worktrees, and `foreman resume` (top level, no arg)
    resumes the only hold — or `foreman resume --task <id>` /
    `foreman resume --worktree <slug>`.
-10. **Never block on watchman**: after dispatching, restarting the daemon, or
+9. **Never block on watchman**: after dispatching, restarting the daemon, or
    any push-based step, end the turn — reports and events arrive here on
    their own. Use `watchman status` (instant) for health, never `sleep` or
    wait-and-recheck.

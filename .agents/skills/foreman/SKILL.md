@@ -10,8 +10,9 @@ work to worker pi agents and every report comes back to you.
 
 ## Ground rules
 
-0. One-time setup: build the binaries — `go build -o .assembly/bin/ ./cmd/...`.
-   Workers run in other repos and cannot `go run` this one (`task execute`
+0. One-time setup: run `foreman setup` — it builds `bin/foreman` and
+   `bin/watchman` into `.assembly/bin/`. Workers run in other repos and
+   cannot `go run` this one (`task execute`
    warns if `bin/foreman` is missing); the watchman daemon cannot auto-start
    without `bin/watchman`.
 1. Run foreman from this repo (state lives in `.assembly/` here):
@@ -66,8 +67,7 @@ its own state (`task list --worktree <slug>`).
    - plan done → the message contains the plan path; tab closed itself.
      ALWAYS share a summary, then prompt the user for the next step (usually
      build; execute it or ask, per their earlier choice).
-   - build done → summarize, offer `pr create`, then
-     `worktree update <slug> --status pr-open`.
+   - build done → summarize, offer `pr create` (it sets `pr-open` itself).
    - blocked (question) → the message body has `QUESTION:` and `OPTION:`
      lines. Do NOT auto-ask. Tell the user which task has a question and ask
      if they want to see it; only if yes, relay it via `ask_user_question`
@@ -118,15 +118,16 @@ Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by stat
   (`.assembly/output/<issue-id|worktree-slug>-<label>.md`); the tab closed itself. ALWAYS share a
   summary with the user. Plan/research never require cleanup from you.
 - **done (plan)** → prompt the user for the next step (build, usually).
-- **done (build)** → `pr create <worktree>` then
-  `worktree update <worktree> --status pr-open`; review done → tell user.
+- **done (build)** → `pr create <worktree>` (it pushes, opens or reuses the
+  PR, and moves planning/building/blocked/failed to pr-open by itself);
+  review done → tell user.
 - **blocked**: the message contains a QUESTION/OPTION block. Never auto-ask:
   tell the user which task has a question and offer to show it; relay via
   `ask_user_question` only if they want it, then send the answer with
   `mailbox send <task-id> "<answer>"` (delivered into their tab). The user
   never needs to open the worker tab.
-- **failed**: show the user the message; propose re-run (`task update t1 --status
-  pending` + `task execute t1`) or teardown. research/plan tabs close on
+- **failed**: show the user the message; propose re-run (`task rerun t1`)
+  or teardown. research/plan tabs close on
   failed too.
 
 ## PR cycle
@@ -167,12 +168,12 @@ rationale and exact commands):
 - **claude**: wrap `foreman mailbox inbox --unread --follow` in a persistent
   Monitor tool call. Each new message arrives as its own native notification.
 - **pi**: install `pi-background-tasks` once (`pi install
-  npm:pi-background-tasks@latest`), then `bg_run` a one-shot poller that
-  exits the moment `foreman mailbox inbox --unread` returns something other
-  than `mailbox empty` — its exit triggers pi's completion-wake with the
-  message. Re-arm by `bg_run`-ing the same poller again after every wake;
-  there is no way to make this self-perpetuating, since `bg_run` is a
-  model-invoked tool a shell script cannot call into itself.
+  npm:pi-background-tasks@latest`), then `bg_run` a one-shot
+  `foreman mailbox wait` — it blocks until an unread message exists,
+  prints it, and exits; the exit triggers pi's completion-wake with the
+  message. Re-arm by `bg_run`-ing it again after every wake; there is no
+  way to make this self-perpetuating, since `bg_run` is a model-invoked
+  tool a shell script cannot call into itself.
 
 If you notice mailbox delivery isn't armed (e.g. a fresh session, or after
 restarting), set it up before relying on automatic reports — otherwise
@@ -199,5 +200,6 @@ go run ./cmd/foreman worktree remove eng-123      # delete checkout + tasks (aft
 
 ## Reference
 
-- Full command tree and status models: [commands](references/commands.md)
+- Full command tree and status models: run `foreman help` (every command
+  takes `--help`); the tree in AGENTS.md is the human summary.
 - Worker prompt contract and mailbox protocol: [protocol](references/protocol.md)

@@ -16,9 +16,8 @@ where the user is the requested reviewer (mailbox delivery surfaces
    and confirm starting the review. Then materialize a checkout:
    - Find the project: the repo in the watch event / the user's reference
      matched against registered projects (`project list`).
-   - `git -C <project-path> fetch origin pull/<N>/head:pr-<N>`
-   - `worktree add pr-<N> --project <project>` (branch `pr-<N>` already
-     exists from the fetch; the worktree checks it out).
+   - `pr checkout <N> --project <project>` — it fetches the PR head and
+     creates the `pr-<N>` worktree (branch `pr-<N>`, never branch-prefixed).
 2. **REVIEW** — `review "Review PR #N <title>: correctness, tests, docs,
    scope; check the diff against the PR description" --worktree pr-<N>
    --slug review-pr-<N>`, then `task execute`. The worker's done message ends
@@ -55,22 +54,22 @@ where the user is the requested reviewer (mailbox delivery surfaces
      later: either from GitHub's own review UI, or
      `pr review <N> --verdict <verdict> --submit <review-id>` (comments were
      already attached at creation; `--submit` only assigns the verdict).
-5. **CLEANUP** — `worktree remove pr-<N>`, then
-   `git -C <project-path> branch -D pr-<N>`. Runs either way — the pending
-   review lives on GitHub, not in the local checkout. Summarize for the
-   user; if the review was left pending, say so plainly (this pass isn't
-   fully done from GitHub's perspective until they publish it).
+5. **CLEANUP** — `worktree remove pr-<N>` (it also deletes the fetched
+   `pr-<N>` branch). Runs either way — the pending review lives on GitHub,
+   not in the local checkout. Summarize for the user; if the review was left
+   pending, say so plainly (this pass isn't fully done from GitHub's
+   perspective until they publish it).
 
 ## Publishing a pending review later
 
 If the user asks to publish a review left pending earlier (possibly a
 different session, no `pr-<N>` worktree around anymore) — re-fetch it rather
 than trusting memory, since it may have sat a while or been hand-edited on
-GitHub: `gh api repos/<repo>/pulls/<N>/reviews/<review-id>` for the body,
-`gh api repos/<repo>/pulls/<N>/reviews/<review-id>/comments` for the inline
-comments. Run CONFIRM (verdict question only — it's already pending, nothing
-left to choose there) showing that fetched body and every inline comment
-verbatim, then `pr review <N> --verdict <verdict> --submit <review-id>`.
+GitHub: `pr pending <N> --id <review-id>` (with `--repo` if no `pr-<N>`
+worktree exists) shows the body and every inline comment. Run CONFIRM
+(verdict question only — it's already pending, nothing left to choose
+there) showing that fetched body and every inline comment verbatim, then
+`pr review <N> --verdict <verdict> --submit <review-id>`.
 
 ## When the author responds
 
@@ -83,10 +82,10 @@ message, full comment/reply text included, addressed to you.
 
 React like the WATCH stage in `pr.md` does for your own PRs — show the user
 the comments verbatim and ask what to do — but the follow-up is different
-since this isn't your PR to fix: offer `pipeline review <pr>` again (the
-FETCH step re-fetches the updated branch) rather than a `respond` task. If
-they just want to reply without a full re-review, `pr comment <pr>` needs a
-worktree to resolve against; re-fetch one via FETCH's steps 1-2 first, then
+since this isn't your PR to fix: offer `pipeline review <pr>` again
+(`pr checkout` updates the existing worktree) rather than a `respond` task.
+If they just want to reply without a full re-review, `pr comment <pr>` needs
+a worktree to resolve against; re-fetch one via FETCH's steps 1-2 first, then
 `worktree remove pr-<N>` again when done.
 
 ## Rules
@@ -102,8 +101,7 @@ worktree to resolve against; re-fetch one via FETCH's steps 1-2 first, then
   say why, rather than treating the rejection as a bug.
 - If the review worker is blocked (question), relay as usual; the pipeline
   waits.
-- Re-review after the author pushes fixes: run the pipeline again — fetch
-   updates the `pr-<N>` branch (`git -C <project-path> fetch origin
-   pull/<N>/head:pr-<N>` fails if the branch exists; use
-   `git fetch origin pull/<N>/head && git branch -f pr-<N> FETCH_HEAD`, or
-   remove and re-add the worktree).
+- Re-review after the author pushes fixes: run the pipeline again —
+   `pr checkout <N>` hard-resets the existing `pr-<N>` worktree to the
+   current PR head (review checkouts are disposable; it never conflicts
+   with a stale branch).

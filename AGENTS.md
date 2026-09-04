@@ -66,6 +66,7 @@ pr = PR number or worktree slug. Every ID positional accepts the human-friendly 
 
 ```
 foreman
+  setup                    # build foreman + watchman into .assembly/bin/
   project
     list
     add <path>               # register local repo; --name to override inferred name
@@ -91,8 +92,10 @@ foreman
     add                      # --type plan|research|build|test|fix|review|respond
                              # --note --slug --worktree
                              # --general | --thread (note kind)
+                             # a repeated --slug auto-rounds: test -> test-r2, -r3
     get <task-id>
     execute <task-id>        # spawn pi agent in a herdr tab and run the task
+    rerun <task-id>          # teardown if running, reset to pending, execute
     update <task-id>         # --status pending|in-progress|self-review|done|blocked|failed --note
     teardown <task-id>
     remove <task-id>
@@ -100,7 +103,9 @@ foreman
     create <worktree>        # push branch, then open PR --title --base --no-template
                              #  (idempotent: reuses an existing PR for the branch;
                              #  title defaults to Linear issue title, base to repo
-                             #  default; body follows the repo PR template)
+                             #  default; body follows the repo PR template; any
+                             #  planning/building/blocked/failed status moves to
+                             #  pr-open automatically)
     comment <pr|worktree>    # --body <text> [--reply <comment-id>] post a comment
                              #  or a threaded reply to an inline review comment
     review <pr-number>       # --verdict approve|comment|request-changes --body <text>
@@ -111,8 +116,17 @@ foreman
                              #  of submitting; --submit <review-id> --verdict ... publishes
                              #  a pending review later (comments already attached at creation)
     get <pr|worktree>        # --comments
+    checkout <pr-number>    # materialize a PR as a pr-<N> review worktree
+                             #  (--project when multiple registered); re-runs
+                             #  hard-reset it to the current PR head;
+                             #  worktree remove pr-<N> also deletes the branch
+    pending <pr-number>      # list reviews left pending (--id shows that
+                             #  review's inline comments too) before
+                             #  publishing with --submit
   mailbox
     inbox                    # --unread to show only unread
+    wait                     # block until an unread message arrives, print it,
+                             #  and exit (one-shot delivery primitive)
     send <task-id> <message> # --status done|blocked|failed|in-progress|self-review
   status                     # one-screen overview: worktrees + status, running
                              # tasks, unread mail — the central instance's home view
@@ -166,8 +180,8 @@ as `parent_id`; foreman messages use `from: foreman` with the foreman pane as
 - **Foreman side** (anywhere else): the message is recorded and also delivered
   into the worker's tab via `herdr agent prompt`.
 - Workers report with the foreman binary, not `go run`: `task execute` injects
-  `FOREMAN_BIN` (usually `.assembly/bin/foreman`, built once with
-  `go build -o .assembly/bin/foreman ./cmd/foreman`) and embeds the full path
+  `FOREMAN_BIN` (usually `.assembly/bin/foreman`, built once with `foreman setup`)
+  and embeds the full path
   in the worker prompt.
 - `foreman mailbox inbox` prints messages and marks the shown ones read.
   `--follow` keeps watching the mailbox dir (fsnotify) and prints new
@@ -183,13 +197,13 @@ as `parent_id`; foreman messages use `from: foreman` with the foreman pane as
     on a job's *completion*, never on new output from a still-running job
     (verified — even their own persistent-watch example only tracks
     crash/exit). So `--follow` alone never wakes pi. Instead `bg_run` a
-    one-shot poller that exits the moment it finds something:
-    `while true; do out=$(./.assembly/bin/foreman mailbox inbox --unread); if [ "$out" != "mailbox empty" ]; then echo "$out"; break; fi; sleep 2; done`
-    — the exit triggers the completion notification, which wakes pi with
-    the message. Re-arm by `bg_run`-ing the same command again after every
-    wake (pi must remember to do this each time — there is no way to make
-    it self-perpetuating from the shell script alone, since `bg_run` is a
-    model-invoked tool, not something a plain script can call into).
+    one-shot `foreman mailbox wait` — it blocks until an unread message
+    exists, prints it, and exits; the exit triggers the completion
+    notification, which wakes pi with the message. Re-arm by `bg_run`-ing
+    it again after every wake (pi must remember to do this each time —
+    there is no way to make it self-perpetuating from a shell script,
+    since `bg_run` is a model-invoked tool, not something a script can
+    call into itself).
 - The watchman daemon polls GitHub (`--interval`, default 60s) and writes
   results into the mailbox as `from: watch` messages; it does not deliver
   anything itself. It previously pushed messages into the foreman pane via
@@ -220,8 +234,9 @@ a plan task in the same worktree is pending/in-progress/self-review/blocked.
 Plan/research/test workers write their report to `<state-dir>/output/<issue-id|worktree-slug>-<label>.md`
 (`.assembly/output/` in the assembly repo) and must mention that path in their
 done message — `mailbox send` rejects a done from these types without an
-`output/` path. Their tabs close automatically on
-`done`/`failed` (blocked keeps the tab open for the answer). Test workers
+`output/` path. Worker tabs close automatically on `done` (all types;
+blocked keeps the tab open for the answer), and on `failed` for the
+report-writing plan/research/test types. Test workers
 report `VERDICT: pass|fail`, review workers `FINDINGS: none` or numbered
 findings, and fix workers re-run tests locally before reporting done.
 Build/fix/respond workers commit their changes before reporting done. A plan task whose
@@ -388,7 +403,7 @@ Both files are created lazily on first write — an empty `.assembly/` with only
 - Language: **Go**. Binary: `foreman` (package `cmd/foreman`).
 - Layout:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
-    project, issue, worktree, task, pr, mailbox, status).
+    project, issue, worktree, task, pr, mailbox, status, setup).
   - `cmd/watchman/` — daemon entrypoint: start/stop/status, foreground by
     default, `--detached` for the background lifecycle.
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
