@@ -23,9 +23,10 @@ type Linear struct {
 }
 
 type Settings struct {
-	Linear   Linear              `json:"linear"`
-	Harness  string              `json:"harness,omitempty"`
-	Projects map[string]*Project `json:"projects"`
+	Linear       Linear              `json:"linear"`
+	Harness      string              `json:"harness,omitempty"`
+	BranchPrefix string              `json:"branch_prefix,omitempty"`
+	Projects     map[string]*Project `json:"projects"`
 }
 
 func Dir() string {

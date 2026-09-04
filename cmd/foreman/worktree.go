@@ -132,6 +132,7 @@ func newWorktreeCmd() *cobra.Command {
 			if _, ok := s.Worktrees[slug]; ok {
 				return fmt.Errorf("worktree %q already exists", slug)
 			}
+			branch := st.BranchPrefix + slug
 			title := ""
 			if issueID != "" {
 				if issue, err := issue.GetIssue(issueID, config.LinearAPIKey()); err == nil {
@@ -169,11 +170,11 @@ func newWorktreeCmd() *cobra.Command {
 				}
 			}
 			if flagDryRun {
-				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, slug, store.WtPlanning)
-				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", slug, "--label", slug))
+				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, branch, store.WtPlanning)
+				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", branch, "--label", slug))
 				return nil
 			}
-			wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, slug, addBase)
+			wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, branch, addBase)
 			if err != nil {
 				return err
 			}
@@ -181,7 +182,7 @@ func newWorktreeCmd() *cobra.Command {
 				Slug:        slug,
 				Project:     p.Name,
 				IssueID:     issueID,
-				Branch:      slug,
+				Branch:      branch,
 				Path:        path,
 				WorkspaceID: wsID,
 				RootTabID:   rootTabID,
@@ -192,7 +193,7 @@ func newWorktreeCmd() *cobra.Command {
 				return err
 			}
 			output(wt, func() {
-				fmt.Printf("created worktree %s (branch %s) in workspace %s\n", slug, slug, wsID)
+				fmt.Printf("created worktree %s (branch %s) in workspace %s\n", slug, branch, wsID)
 				if title != "" {
 					fmt.Printf("issue: %s %s\n", issueID, title)
 				}

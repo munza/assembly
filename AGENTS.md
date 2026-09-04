@@ -77,6 +77,7 @@ foreman
     list                     # --project to filter
     add <issue-id|slug> [words...]  # --project (default: by issue_prefix or cwd), --base
                                     # slug = args joined: plat-763-rate-limiter-tests
+                                    # branch = settings branch_prefix + slug (default: same as slug)
     get <worktree>
     update <worktree>        # --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
     hold <worktree>          # --note <text> record a paused pipeline decision/step
@@ -272,6 +273,7 @@ configuration, not runtime state:
     "workspace": "myteam"
   },
   "harness": "pi",
+  "branch_prefix": "foreman/",
   "projects": {
     "igloo": {
       "path": "/Users/me/code/igloo",
@@ -299,6 +301,12 @@ configuration, not runtime state:
   `python`/`pytest`/`pip install` — never push, never a blanket bypass) plus
   a `CLAUDE.md` with unattended setup/test instructions so it never stops to
   ask a question nobody is there to answer.
+- `branch_prefix` prepends to the slug to form the git branch name (e.g.
+  `foreman/` + `dem-1-something-slug` → `foreman/dem-1-something-slug`);
+  unset means the branch equals the slug, as before. The worktree's own
+  `slug` (used for its directory, tab labels, mailbox keys, agent names)
+  never carries the prefix — only `Worktree.Branch` does, which already
+  existed as a separate field for exactly this.
 - The project workspace is adopted, not duplicated: `worktree add` first looks
   for an existing herdr workspace whose non-linked repo root matches the
   project path (symlinks resolved); only when none exists does it create one.
