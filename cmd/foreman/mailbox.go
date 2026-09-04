@@ -65,6 +65,20 @@ func newMailboxCmd() *cobra.Command {
 	inbox.Flags().BoolVar(&inboxUnread, "unread", false, "show only unread messages")
 	inbox.Flags().BoolVar(&inboxFollow, "follow", false, "keep watching for new messages")
 
+	wait := &cobra.Command{
+		Use:   "wait",
+		Short: "Block until an unread message arrives, print it, and exit",
+		Long: "Block until at least one unread message exists, print them, mark them\n" +
+			"read, and exit. Unlike `inbox --follow`, this is one-shot: it exits on\n" +
+			"the first delivery. That exit is the point — agent runtimes wake a\n" +
+			"follow-up turn only when a background job *completes*, so a job that\n" +
+			"never exits never wakes anything. Run this under the background-task\n" +
+			"tool and re-arm it after every wake to receive each new message.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return waitMailbox()
+		},
+	}
+
 	send := &cobra.Command{
 		Use:   "send <task-id> <message>",
 		Short: "Send a message for a task (workers report to foreman; foreman prompts workers)",
@@ -141,7 +155,7 @@ func newMailboxCmd() *cobra.Command {
 		Use:   "mailbox",
 		Short: "Message bus between the foreman and worker agents",
 	}
-	cmd.AddCommand(inbox, send)
+	cmd.AddCommand(inbox, send, wait)
 	return cmd
 }
 
@@ -188,6 +202,55 @@ func followMailbox() error {
 			return err
 		}
 	}
+}
+
+// waitMailbox is the one-shot counterpart of followMailbox: it returns as
+// soon as one unread message batch has been printed, instead of streaming
+// forever.
+func waitMailbox() error {
+	if ms := drainUnread(); len(ms) > 0 {
+		return nil
+	}
+	w, err := watchman.New()
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	if err := w.AddDir(store.MailboxDir()); err != nil {
+		return err
+	}
+	// One more drain after arming the watcher closes the window between the
+	// first drain and AddDir where a write could slip through unobserved.
+	if ms := drainUnread(); len(ms) > 0 {
+		return nil
+	}
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	select {
+	case <-sig:
+		return nil
+	case <-w.Events:
+		_ = drainUnread()
+		return nil
+	case err := <-w.Errors:
+		return err
+	}
+}
+
+func drainUnread() []*store.Message {
+	ms, err := store.UnreadMessages()
+	if err != nil {
+		return nil
+	}
+	for _, m := range ms {
+		printMessage(m)
+	}
+	ids := make([]string, len(ms))
+	for i, m := range ms {
+		ids[i] = m.ID
+	}
+	_ = store.MarkRead(ids...)
+	return ms
 }
 
 // printMessage formats a mailbox message the same way watchman used to push
