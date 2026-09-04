@@ -96,7 +96,7 @@ func newTaskCmd() *cobra.Command {
 			return nil
 		},
 	}
-	add.Flags().StringVar(&addSlug, "slug", "", "short unique slug for the task")
+	add.Flags().StringVar(&addSlug, "slug", "", "short slug used as tab/agent label; a repeat auto-rounds to slug-r2, -r3, ...")
 	add.Flags().StringVar(&addType, "type", "", "task type: "+strings.Join(taskTypes, "|"))
 	add.Flags().StringVar(&addNote, "note", "", "what the task should do")
 	add.Flags().StringVar(&addWorktree, "worktree", "", "target worktree (defaults to the only worktree)")
@@ -415,10 +415,27 @@ func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error)
 		return nil, err
 	}
 	if slug != "" {
-		for _, t := range s.Tasks {
-			if t.Slug == slug {
-				return nil, fmt.Errorf("task slug %q already used by %s", slug, t.ID)
+		base := slug
+		n := 1
+		for {
+			clash := false
+			for _, t := range s.Tasks {
+				if t.Slug == slug {
+					clash = true
+					break
+				}
 			}
+			if !clash {
+				break
+			}
+			n++
+			if n > 99 {
+				return nil, fmt.Errorf("cannot derive an unused slug from %q (r2-r99 taken)", base)
+			}
+			slug = fmt.Sprintf("%s-r%d", base, n)
+		}
+		if slug != base {
+			fmt.Printf("slug %q already used; task created as %q\n", base, slug)
 		}
 	}
 	t := &store.Task{
