@@ -100,12 +100,6 @@ func newMailboxCmd() *cobra.Command {
 			if workerSend {
 				from = t.Type
 			}
-			parent := ""
-			if workerSend {
-				parent = t.TabID
-			} else if p := os.Getenv("HERDR_PANE_ID"); p != "" {
-				parent = p
-			}
 			if workerSend && sendStatus == store.TaskDone && (t.Type == "plan" || t.Type == "research" || t.Type == "test") && !strings.Contains(args[1], "output/") {
 				if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
 					expected := filepath.Join(store.Dir(), "output", reportPrefix(wt)+"-"+taskLabel(t)+".md")
@@ -113,10 +107,10 @@ func newMailboxCmd() *cobra.Command {
 				}
 				return fmt.Errorf("done message must mention the report file path under output/; write the report, then resend including the path")
 			}
-			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus, ParentID: parent}
+			m := &store.Message{TaskID: t.ID, From: from, Body: args[1], Status: sendStatus}
 			if wt, werr := store.ResolveWorktree(s, t.Worktree); werr == nil {
 				m.Project, m.Worktree, m.IssueID = wt.Project, wt.Slug, wt.IssueID
-				m.TabLabel = tabLabel(t)
+				m.Label = taskLabel(t)
 			}
 			if flagDryRun {
 				fmt.Printf("would record message from %s for task %s: %s\n", from, t.ID, oneLine(args[1]))
@@ -138,15 +132,15 @@ func newMailboxCmd() *cobra.Command {
 				}
 			}
 			if workerSend && t.TabID != "" {
-			// done always closes the tab: the worker is finished. failed closes
-			// it only for the report-writing types; build/fix/review/respond
-			// failures stay open so the foreman (or user) can inspect the tab.
-			closesTab := sendStatus == store.TaskDone ||
-				(sendStatus == store.TaskFailed && (t.Type == "research" || t.Type == "plan" || t.Type == "test"))
-			if closesTab {
-				closeTaskTab(s, t)
+				// done always closes the tab: the worker is finished. failed closes
+				// it only for the report-writing types; build/fix/review/respond
+				// failures stay open so the foreman (or user) can inspect the tab.
+				closesTab := sendStatus == store.TaskDone ||
+					(sendStatus == store.TaskFailed && (t.Type == "research" || t.Type == "plan" || t.Type == "test"))
+				if closesTab {
+					closeTaskTab(s, t)
+				}
 			}
-		}
 			if !workerSend && t.AgentName != "" && t.PaneID != "" {
 				if err := mux.AgentPrompt(t.AgentName, args[1]); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not prompt agent: %v\n", err)
@@ -283,8 +277,8 @@ func printMessage(m *store.Message) {
 		if len(inner) > 0 {
 			head += " (" + strings.Join(inner, ", ") + ")"
 		}
-		if m.From != "watch" && m.TabLabel != "" {
-			head += " · tab " + m.TabLabel
+		if m.From != "watch" && m.Label != "" {
+			head += " · " + m.Label
 		}
 	} else if m.From == "watch" && m.TaskID != "" && m.Worktree == "" {
 		head += " " + m.TaskID

@@ -135,7 +135,7 @@ func newTaskCmd() *cobra.Command {
 				return err
 			}
 			if t.TabID != "" {
-				return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, tabLabel(t), t.ID)
+				return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, taskLabel(t), t.ID)
 			}
 			return runTaskAgent(s, t)
 		},
@@ -165,8 +165,8 @@ func newTaskCmd() *cobra.Command {
 				}
 			}
 			if flagDryRun {
-					fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskPending)
-					return nil
+				fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskPending)
+				return nil
 			}
 			t.Status = store.TaskPending
 			if err := store.Save(s); err != nil {
@@ -304,7 +304,7 @@ func runTaskAgent(s *store.State, t *store.Task) error {
 		return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
 	}
 	if t.TabID != "" {
-		return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, tabLabel(t), t.ID)
+		return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, taskLabel(t), t.ID)
 	}
 	if t.Type == "build" || t.Type == "test" || t.Type == "fix" {
 		for _, pt := range store.WorktreeTasks(s, wt.Slug) {
@@ -537,13 +537,6 @@ func pendingResearch(s *store.State, slug string) []string {
 	}
 	sort.Strings(ids)
 	return ids
-}
-
-func tabLabel(t *store.Task) string {
-	if t.Slug != "" {
-		return t.Slug
-	}
-	return t.Type + "-" + t.ID
 }
 
 func reportPrefix(wt *store.Worktree) string {

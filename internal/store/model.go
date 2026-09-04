@@ -29,18 +29,18 @@ type ProjectState struct {
 }
 
 type Worktree struct {
-	Slug        string `json:"slug"`
-	Project     string `json:"project"`
-	IssueID     string `json:"issue_id,omitempty"`
-	Branch      string `json:"branch"`
-	Path        string `json:"path"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	Slug         string `json:"slug"`
+	Project      string `json:"project"`
+	IssueID      string `json:"issue_id,omitempty"`
+	Branch       string `json:"branch"`
+	Path         string `json:"path"`
+	WorkspaceID  string `json:"workspace_id,omitempty"`
 	RootTabID    string `json:"root_tab_id,omitempty"`
-	SeenComments int   `json:"seen_comments,omitempty"`
-	SelfComments []int `json:"self_comments,omitempty"`
+	SeenComments int    `json:"seen_comments,omitempty"`
+	SelfComments []int  `json:"self_comments,omitempty"`
 	Hold         string `json:"hold,omitempty"`
-	Status      string `json:"status"`
-	PR          int    `json:"pr,omitempty"`
+	Status       string `json:"status"`
+	PR           int    `json:"pr,omitempty"`
 }
 
 type Task struct {
@@ -90,8 +90,7 @@ type Message struct {
 	Project  string    `json:"project,omitempty"`
 	Worktree string    `json:"worktree,omitempty"`
 	IssueID  string    `json:"issue_id,omitempty"`
-	TabLabel string    `json:"tab_label,omitempty"`
-	ParentID string    `json:"parent_id,omitempty"`
+	Label    string    `json:"label,omitempty"`
 	Time     time.Time `json:"time"`
 	Read     bool      `json:"read"`
 }

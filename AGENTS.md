@@ -187,9 +187,10 @@ foreman respond <note>
 
 One command serves both directions. Sender is detected by comparing the shell's
 `HERDR_PANE_ID` with the task's stored pane ID. Worker messages record the
-task **type** as `from` (`plan`, `build`, `test`, ...) and the sending tab ID
-as `parent_id`; foreman messages use `from: foreman` with the foreman pane as
-`parent_id`; watch events use `from: watch`:
+task **type** as `from` (`plan`, `build`, `test`, ...); foreman messages use
+`from: foreman`; watch events use `from: watch`. Messages never carry tab
+IDs — tabs close when tasks finish, so only durable identifiers (task ID,
+worktree, issue, task label) are recorded:
 - **Worker side** (runs inside the task's tab): `foreman mailbox send <id> <msg>
   --status ...` appends an unread message for the foreman and updates task status.
 - **Foreman side** (anywhere else): the message is recorded and also delivered
