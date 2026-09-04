@@ -1,2 +1,3 @@
 .assembly/
 .pi/
+.claude/scheduled_tasks.lock
