@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -212,7 +213,7 @@ func newPRCmd() *cobra.Command {
 	commentCmd.Flags().StringVar(&commentBody, "body", "", "comment text")
 	commentCmd.Flags().IntVar(&commentReplyID, "reply", 0, "inline comment ID to reply to (thread reply)")
 
-	var reviewVerdict, reviewBody, reviewRepo string
+	var reviewVerdict, reviewBody, reviewRepo, reviewCommentsJSON string
 	var reviewPending bool
 	var reviewSubmit int
 	reviewCmd := &cobra.Command{
@@ -246,6 +247,12 @@ func newPRCmd() *cobra.Command {
 			if repo == "" {
 				return fmt.Errorf("cannot resolve repo; pass --repo owner/name (or --project context)")
 			}
+			var comments []git.ReviewComment
+			if reviewCommentsJSON != "" {
+				if err := json.Unmarshal([]byte(reviewCommentsJSON), &comments); err != nil {
+					return fmt.Errorf("invalid --comments-json: %v", err)
+				}
+			}
 			if reviewSubmit > 0 {
 				if !verdicts[reviewVerdict] {
 					return fmt.Errorf("--verdict is required: approve|comment|request-changes")
@@ -262,10 +269,10 @@ func newPRCmd() *cobra.Command {
 			}
 			if reviewPending {
 				if flagDryRun {
-					fmt.Printf("would run: gh api repos/%s/pulls/%d/reviews -f body=%s (left pending)\n", repo, prNum, oneLine(reviewBody))
+					fmt.Printf("would run: gh api repos/%s/pulls/%d/reviews --input - (body=%s, %d inline comment(s), left pending)\n", repo, prNum, oneLine(reviewBody), len(comments))
 					return nil
 				}
-				id, url, err := git.PRReviewPending(repo, prNum, reviewBody)
+				id, url, err := git.PRReviewPending(repo, prNum, reviewBody, comments)
 				if err != nil {
 					return err
 				}
@@ -277,10 +284,10 @@ func newPRCmd() *cobra.Command {
 				return fmt.Errorf("--verdict is required: approve|comment|request-changes")
 			}
 			if flagDryRun {
-				fmt.Printf("would run: gh pr review %d --repo %s --%s (body: %s)\n", prNum, repo, reviewVerdict, oneLine(reviewBody))
+				fmt.Printf("would run: gh api repos/%s/pulls/%d/reviews --input - (event=%s, body=%s, %d inline comment(s))\n", repo, prNum, reviewVerdict, oneLine(reviewBody), len(comments))
 				return nil
 			}
-			if err := git.PRReview(repo, prNum, reviewVerdict, reviewBody); err != nil {
+			if err := git.PRReview(repo, prNum, reviewVerdict, reviewBody, comments); err != nil {
 				return err
 			}
 			fmt.Printf("submitted %s review on PR #%d\n", reviewVerdict, prNum)
@@ -292,6 +299,7 @@ func newPRCmd() *cobra.Command {
 	reviewCmd.Flags().StringVar(&reviewRepo, "repo", "", "repo (defaults to the pr-N worktree's project, or the single registered project)")
 	reviewCmd.Flags().BoolVar(&reviewPending, "pending", false, "leave the review pending on GitHub (visible only to you) instead of submitting it; publish later with --submit")
 	reviewCmd.Flags().IntVar(&reviewSubmit, "submit", 0, "publish a previously created pending review by its ID, with --verdict")
+	reviewCmd.Flags().StringVar(&reviewCommentsJSON, "comments-json", "", `inline comments, preferred over folding findings into --body: a JSON array like [{"path":"main.py","line":54,"body":"..."}]`)
 
 	cmd := &cobra.Command{
 		Use:   "pr",

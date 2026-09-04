@@ -22,7 +22,9 @@ where the user is the requested reviewer (mailbox delivery surfaces
 2. **REVIEW** — `review "Review PR #N <title>: correctness, tests, docs,
    scope; check the diff against the PR description" --worktree pr-<N>
    --slug review-pr-<N>`, then `task execute`. The worker's done message ends
-   with `FINDINGS: none` or numbered findings — always share them verbatim.
+   with `FINDINGS: none` or numbered findings, each tagged with its location
+   (`<path>:<line> — ...`, `<path> — ...`, or plain text if untied to a
+   file) — always share them verbatim.
 3. **CONFIRM** — one `ask_user_question` call, two questions, quoting the
    findings verbatim:
    1. Post the review as-is — verdict auto-picked: `FINDINGS: none` →
@@ -32,13 +34,21 @@ where the user is the requested reviewer (mailbox delivery surfaces
    2. Publish it now, or leave it pending on GitHub? Options: `Publish
       immediately (Recommended)` / `Leave pending — visible only to you,
       so you can review or edit it on GitHub before publishing`.
-4. **POST**:
+4. **POST** — inline comments are preferred over folding everything into the
+   body: for each finding with a `path:line`, build a
+   `--comments-json '[{"path":"...","line":N,"body":"..."}]'` entry (one
+   array, all findings together); a file-level finding without a line, or
+   one untied to any file, goes in `--body` instead (a short summary line
+   plus those). Then:
    - Publish immediately → `pr review <N> --verdict <approve|comment|request-changes>
-     --body "<findings text>"` (repo resolves via the `pr-<N>` worktree).
-   - Leave pending → `pr review <N> --pending --body "<findings text>"`.
-     Its output includes the review ID and the GitHub URL — share both with
-     the user and tell them how to publish it later: either from GitHub's
-     own review UI, or `pr review <N> --verdict <verdict> --submit <review-id>`.
+     --body "<summary/untied findings>" --comments-json '<array>'` (repo
+     resolves via the `pr-<N>` worktree).
+   - Leave pending → `pr review <N> --pending --body "<summary/untied findings>"
+     --comments-json '<array>'`. Its output includes the review ID and the
+     GitHub URL — share both with the user and tell them how to publish it
+     later: either from GitHub's own review UI, or
+     `pr review <N> --verdict <verdict> --submit <review-id>` (comments were
+     already attached at creation; `--submit` only assigns the verdict).
 5. **CLEANUP** — `worktree remove pr-<N>`, then
    `git -C <project-path> branch -D pr-<N>`. Runs either way — the pending
    review lives on GitHub, not in the local checkout. Summarize for the

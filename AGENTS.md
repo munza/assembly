@@ -105,9 +105,11 @@ foreman
                              #  or a threaded reply to an inline review comment
     review <pr-number>       # --verdict approve|comment|request-changes --body <text>
                              #  submit a review (repo from --repo or the pr-N worktree)
+                             #  --comments-json '[{"path":..,"line":N,"body":..}]' for inline
+                             #  comments (preferred over folding findings into --body)
                              #  --pending leaves it pending (visible only to you) instead
                              #  of submitting; --submit <review-id> --verdict ... publishes
-                             #  a pending review later
+                             #  a pending review later (comments already attached at creation)
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread
