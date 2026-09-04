@@ -10,7 +10,7 @@ import (
 	"text/template"
 
 	"assembly/internal/config"
-	"assembly/internal/herdr"
+	"assembly/internal/mux"
 	"assembly/internal/harness"
 	"assembly/internal/store"
 
@@ -189,27 +189,27 @@ func newTaskCmd() *cobra.Command {
 				}
 				return nil
 			}
-			tabID, paneID, err := herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+			tabID, paneID, err := mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
 			if err != nil && wt.Path != "" {
-				if newID, newRootTab, openErr := herdr.WorktreeOpen(wt.Path, wt.Slug); openErr == nil && newID != "" {
+				if newID, newRootTab, openErr := mux.WorktreeOpen(wt.Path, wt.Slug); openErr == nil && newID != "" {
 					wt.WorkspaceID = newID
 					wt.RootTabID = newRootTab
 					_ = store.Save(s)
-					tabID, paneID, err = herdr.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+					tabID, paneID, err = mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
 				}
 			}
 			if err != nil {
 				return err
 			}
-			if err := herdr.AgentStart(name, paneID, h.Kind, h.Args...); err != nil {
-				_ = herdr.TabClose(tabID)
+			if err := mux.AgentStart(name, paneID, h.Kind, h.Args...); err != nil {
+				_ = mux.TabClose(tabID)
 				return err
 			}
-			if err := herdr.AgentPrompt(name, prompt); err != nil {
+			if err := mux.AgentPrompt(name, prompt); err != nil {
 				return err
 			}
 			if wt.RootTabID != "" {
-				if err := herdr.TabClose(wt.RootTabID); err != nil {
+				if err := mux.TabClose(wt.RootTabID); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not close root tab %s: %v\n", wt.RootTabID, err)
 				} else {
 					wt.RootTabID = ""
@@ -290,7 +290,7 @@ func newTaskCmd() *cobra.Command {
 				fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
 				return nil
 			}
-			if err := herdr.TabClose(t.TabID); err != nil {
+			if err := mux.TabClose(t.TabID); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
 			t.TabID, t.PaneID, t.AgentName = "", "", ""
@@ -323,7 +323,7 @@ func newTaskCmd() *cobra.Command {
 				return nil
 			}
 			if t.TabID != "" {
-				if err := herdr.TabClose(t.TabID); err != nil {
+				if err := mux.TabClose(t.TabID); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 				}
 			}

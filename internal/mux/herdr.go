@@ -1,4 +1,4 @@
-package herdr
+package mux
 
 import (
 	"bytes"

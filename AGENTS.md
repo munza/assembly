@@ -315,7 +315,9 @@ Both files are created lazily on first write — an empty `.assembly/` with only
     default, `--detached` for the background lifecycle.
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
   - `internal/git/` — local git helpers plus GitHub PR calls via `gh`.
-  - `internal/herdr/`, `internal/linear/` — thin wrappers.
+  - `internal/mux/` (`herdr.go`; tmux/cmux later), `internal/issue/`
+    (`linear.go`; jira later), `internal/harness/` (`pi.go`; claude later) —
+    thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
   - `internal/watchman/` — the daemon core: mailbox watching + push delivery,
     GitHub PR polling, detached spawn, pane liveness (`fsnotify`).

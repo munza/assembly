@@ -11,7 +11,7 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/git"
-	"assembly/internal/herdr"
+	"assembly/internal/mux"
 	"assembly/internal/linear"
 	"assembly/internal/store"
 
@@ -140,7 +140,7 @@ func newWorktreeCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "warning: could not fetch issue %s: %v\n", issueID, err)
 				}
 			}
-			if !herdr.Available() {
+			if !mux.Available() {
 				return fmt.Errorf("herdr not found in PATH")
 			}
 			if p.WorkspaceID == "" {
@@ -159,7 +159,7 @@ func newWorktreeCmd() *cobra.Command {
 					fmt.Println("would run: " + planRun("herdr", "workspace", "create", "--cwd", p.Path, "--label", p.Name, "--no-focus"))
 					return nil
 				}
-				id, err := herdr.WorkspaceCreate(p.Path, p.Name)
+				id, err := mux.WorkspaceCreate(p.Path, p.Name)
 				if err != nil {
 					return err
 				}
@@ -173,7 +173,7 @@ func newWorktreeCmd() *cobra.Command {
 				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", slug, "--label", slug))
 				return nil
 			}
-			wsID, path, rootTabID, err := herdr.WorktreeCreate(p.WorkspaceID, slug, addBase)
+			wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, slug, addBase)
 			if err != nil {
 				return err
 			}
@@ -354,14 +354,14 @@ func newWorktreeCmd() *cobra.Command {
 			}
 			for _, t := range tasks {
 				if t.TabID != "" {
-					if err := herdr.TabClose(t.TabID); err != nil {
+					if err := mux.TabClose(t.TabID); err != nil {
 						fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 					}
 					t.TabID, t.PaneID, t.AgentName = "", "", ""
 				}
 			}
 			if wt.WorkspaceID != "" {
-				if err := herdr.WorkspaceClose(wt.WorkspaceID); err != nil {
+				if err := mux.WorkspaceClose(wt.WorkspaceID); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 				}
 			}
@@ -487,7 +487,7 @@ func findWorkspaceByRoot(path string) string {
 	if err != nil {
 		target = path
 	}
-	wss, err := herdr.Workspaces()
+	wss, err := mux.Workspaces()
 	if err != nil {
 		return ""
 	}
@@ -521,7 +521,7 @@ func findWorkspaceByRoot(path string) string {
 func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 	for _, t := range store.WorktreeTasks(s, wt.Slug) {
 		if t.TabID != "" {
-			if err := herdr.TabClose(t.TabID); err != nil {
+			if err := mux.TabClose(t.TabID); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 			}
 		}
@@ -543,7 +543,7 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 		}
 	}
 	if wt.WorkspaceID != "" {
-		if err := herdr.WorktreeRemove(wt.WorkspaceID, true); err != nil {
+		if err := mux.WorktreeRemove(wt.WorkspaceID, true); err != nil {
 			if !strings.Contains(err.Error(), "workspace_not_found") {
 				if !force {
 					return err

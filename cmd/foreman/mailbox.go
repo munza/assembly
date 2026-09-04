@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"assembly/internal/herdr"
+	"assembly/internal/mux"
 	"assembly/internal/store"
 	"assembly/internal/watchman"
 
@@ -128,7 +128,7 @@ func newMailboxCmd() *cobra.Command {
 				closeTaskTab(s, t)
 			}
 			if !workerSend && t.AgentName != "" && t.PaneID != "" {
-				if err := herdr.AgentPrompt(t.AgentName, args[1]); err != nil {
+				if err := mux.AgentPrompt(t.AgentName, args[1]); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not prompt agent: %v\n", err)
 				}
 			}
@@ -147,10 +147,10 @@ func newMailboxCmd() *cobra.Command {
 }
 
 func closeTaskTab(s *store.State, t *store.Task) {
-	if wt, err := store.ResolveWorktree(s, t.Worktree); err == nil && wt.WorkspaceID != "" && herdr.TabCount(wt.WorkspaceID) <= 1 {
-		herdr.WorkspaceCloseDetached(wt.WorkspaceID)
+	if wt, err := store.ResolveWorktree(s, t.Worktree); err == nil && wt.WorkspaceID != "" && mux.TabCount(wt.WorkspaceID) <= 1 {
+		mux.WorkspaceCloseDetached(wt.WorkspaceID)
 	} else {
-		herdr.TabCloseDetached(t.TabID)
+		mux.TabCloseDetached(t.TabID)
 	}
 	t.TabID, t.PaneID, t.AgentName = "", "", ""
 	_ = store.Save(s)

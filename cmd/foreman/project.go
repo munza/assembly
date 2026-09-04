@@ -11,7 +11,7 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/git"
-	"assembly/internal/herdr"
+	"assembly/internal/mux"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -177,7 +177,7 @@ func newProjectCmd() *cobra.Command {
 				}
 			}
 			if p.WorkspaceID != "" {
-				if err := herdr.WorkspaceClose(p.WorkspaceID); err != nil {
+				if err := mux.WorkspaceClose(p.WorkspaceID); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 				}
 			}

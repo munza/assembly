@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"assembly/internal/git"
-	"assembly/internal/herdr"
+	"assembly/internal/mux"
 	"assembly/internal/store"
 )
 
@@ -154,7 +154,7 @@ func Run(opts Options) error {
 		case <-pollC:
 			poll()
 		case <-liveC:
-			ok, err := herdr.PaneAgentAlive(opts.ForemanPane)
+			ok, err := mux.PaneAgentAlive(opts.ForemanPane)
 			if err != nil {
 				logf("liveness: %v", err)
 				continue
@@ -191,7 +191,7 @@ func deliver(pane string) {
 		if m.From == "foreman" {
 			continue
 		}
-		if err := herdr.AgentPrompt(pane, PromptText(m)); err != nil {
+		if err := mux.AgentPrompt(pane, PromptText(m)); err != nil {
 			logf("deliver: %v", err)
 			continue
 		}
