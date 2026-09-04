@@ -260,7 +260,7 @@ func newPRCmd() *cobra.Command {
 	}
 	reviewCmd.Flags().StringVar(&reviewVerdict, "verdict", "", "approve|comment|request-changes")
 	reviewCmd.Flags().StringVar(&reviewBody, "body", "", "review body (the findings)")
-	reviewCmd.Flags().StringVar(&reviewRepo, "repo", "owner/name", "repo (defaults to the pr-N worktree's project, or the single registered project)")
+	reviewCmd.Flags().StringVar(&reviewRepo, "repo", "", "repo (defaults to the pr-N worktree's project, or the single registered project)")
 
 	cmd := &cobra.Command{
 		Use:   "pr",
