@@ -198,6 +198,11 @@ as `parent_id`; foreman messages use `from: foreman` with the foreman pane as
   could land mid-keystroke and corrupt what the user was typing. That path
   was removed; `ForemanPane` now exists only so watchman can check liveness
   (`herdr agent get`) and exit when the foreman agent is gone.
+- New-comment polling excludes the authenticated `gh` user's own activity
+  from every category (comments, reviews, inline comments) via
+  `git.CurrentUserLogin`, not just IDs recorded in `self_comments` — leaving
+  your own review on a `watched_prs` entry is otherwise indistinguishable
+  from the response you're actually waiting for.
 - Workers must have the `foreman` binary on PATH (install with
   `go install ./cmd/foreman`); the task prompt tells them the exact command to run.
 
@@ -354,8 +359,19 @@ configuration, not runtime state:
 Both files are created lazily on first write — an empty `.assembly/` with only
 `bin/` is normal until you register a project or create a worktree.
 
-- `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace IDs.
+- `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace
+  IDs, and `watched_prs` (PRs you reviewed but don't own — see below).
   Writes are atomic (tmp + rename). It never exists until the first write.
+- `watched_prs` (keyed `<project>#<pr>`): `pr review` registers one
+  automatically whenever you leave a review (pending or submitted) on a PR
+  no worktree already owns — a `worktree remove pr-<N>` cleanup would
+  otherwise leave nothing for watchman to poll for the author's response.
+  Tracks `seen_comments`/`self_comments` exactly like `Worktree` does for
+  owned PRs (same polling code, `internal/watchman/poll.go`'s
+  `newCommentActivity`, shared between both); removed automatically once
+  the PR is merged or closed. `from: watch` events from a watched PR carry
+  no worktree/issue — just `pr-<N> (<project>)` — since there's no worktree
+  to hang them off of.
 - `.assembly/mailbox/<id>.json` holds one message per file. Messages carry
   context (project, worktree, issue id, tab label) alongside `task_id` so they
   relate directly to reports and sibling tasks. Workers append new

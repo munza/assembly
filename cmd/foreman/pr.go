@@ -264,6 +264,10 @@ func newPRCmd() *cobra.Command {
 				if err := git.PRReviewSubmitPending(repo, prNum, reviewSubmit, reviewVerdict); err != nil {
 					return err
 				}
+				registerWatchedPR(s, st, repo, prNum)
+				if err := store.Save(s); err != nil {
+					return err
+				}
 				fmt.Printf("submitted pending review %d on PR #%d as %s\n", reviewSubmit, prNum, reviewVerdict)
 				return nil
 			}
@@ -276,8 +280,13 @@ func newPRCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				registerWatchedPR(s, st, repo, prNum)
+				if err := store.Save(s); err != nil {
+					return err
+				}
 				fmt.Printf("left review %d pending on PR #%d (visible only to you): %s\n", id, prNum, url)
 				fmt.Printf("submit later with: pr review %d --verdict approve|comment|request-changes --submit %d\n", prNum, id)
+				fmt.Printf("watching PR #%d for replies to this review\n", prNum)
 				return nil
 			}
 			if !verdicts[reviewVerdict] {
@@ -290,7 +299,12 @@ func newPRCmd() *cobra.Command {
 			if err := git.PRReview(repo, prNum, reviewVerdict, reviewBody, comments); err != nil {
 				return err
 			}
+			registerWatchedPR(s, st, repo, prNum)
+			if err := store.Save(s); err != nil {
+				return err
+			}
 			fmt.Printf("submitted %s review on PR #%d\n", reviewVerdict, prNum)
+			fmt.Printf("watching PR #%d for replies to this review\n", prNum)
 			return nil
 		},
 	}
@@ -315,6 +329,32 @@ func quoteAll(args ...string) string {
 		out[i] = quoteIfNeeded(a)
 	}
 	return strings.Join(out, " ")
+}
+
+// registerWatchedPR starts tracking comment/review activity on a PR you
+// just reviewed, so watchman notifies you when the author responds -- but
+// only if no worktree already owns it (that's polled separately, via
+// wt.PR, and would otherwise be double-counted).
+func registerWatchedPR(s *store.State, st *config.Settings, repo string, pr int) {
+	name := ""
+	for pname, p := range st.Projects {
+		if p.Repo == repo {
+			name = pname
+			break
+		}
+	}
+	if name == "" {
+		return
+	}
+	for _, wt := range s.Worktrees {
+		if wt.Project == name && wt.PR == pr {
+			return
+		}
+	}
+	key := fmt.Sprintf("%s#%d", name, pr)
+	if s.WatchedPRs[key] == nil {
+		s.WatchedPRs[key] = &store.WatchedPR{Project: name, PR: pr}
+	}
 }
 
 func resolvePR(s *store.State, ref string) (*store.Worktree, int, error) {

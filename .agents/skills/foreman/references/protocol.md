@@ -89,3 +89,9 @@ or project name: new PR comments/reviews, review requests, and worktree status
 changes derived from GitHub (awaiting-review, addressing-comments,
 ready-for-merge, done). They reach the central instance the same way any
 other mailbox message does — see "Delivery into the central instance" above.
+
+New comments/reviews are also polled for PRs you reviewed but don't own
+(`pipeline review`'s `pr review` registers these in `watched_prs` since
+there's no worktree left to poll against after CLEANUP) — the target is
+`pr-<N>` with no worktree/issue context, since none exists. See
+`pipeline/references/review.md`'s "When the author responds" for how to react.

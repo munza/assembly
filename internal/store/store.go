@@ -32,9 +32,10 @@ func MailboxDir() string {
 
 func Empty() *State {
 	return &State{
-		Projects:  map[string]*ProjectState{},
-		Worktrees: map[string]*Worktree{},
-		Tasks:     map[string]*Task{},
+		Projects:   map[string]*ProjectState{},
+		Worktrees:  map[string]*Worktree{},
+		Tasks:      map[string]*Task{},
+		WatchedPRs: map[string]*WatchedPR{},
 	}
 }
 
@@ -58,6 +59,9 @@ func Load() (*State, error) {
 	}
 	if s.Tasks == nil {
 		s.Tasks = map[string]*Task{}
+	}
+	if s.WatchedPRs == nil {
+		s.WatchedPRs = map[string]*WatchedPR{}
 	}
 	return s, nil
 }

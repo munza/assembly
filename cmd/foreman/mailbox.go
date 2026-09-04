@@ -218,6 +218,9 @@ func printMessage(m *store.Message) {
 		}
 	} else if m.From == "watch" && m.TaskID != "" && m.Worktree == "" {
 		head += " " + m.TaskID
+		if m.Project != "" {
+			head += " (" + m.Project + ")"
+		}
 	}
 	body := m.Body
 	if len(body) > 4000 {

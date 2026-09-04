@@ -69,6 +69,23 @@ comments. Run CONFIRM (verdict question only — it's already pending, nothing
 left to choose there) showing that fetched body and every inline comment
 verbatim, then `pr review <N> --verdict <verdict> --submit <review-id>`.
 
+## When the author responds
+
+Leaving a review (pending or submitted, via `pr review`) automatically starts
+watching that PR for replies — no separate step, and no worktree required
+(`state.json`'s `watched_prs`, cleaned up automatically once the PR is
+merged or closed). New activity arrives the same way any other watch event
+does: a `[watchman] ... pr-<N> (<project>): <N> new comment(s)/review(s) ...`
+message, full comment/reply text included, addressed to you.
+
+React like the WATCH stage in `pr.md` does for your own PRs — show the user
+the comments verbatim and ask what to do — but the follow-up is different
+since this isn't your PR to fix: offer `pipeline review <pr>` again (the
+FETCH step re-fetches the updated branch) rather than a `respond` task. If
+they just want to reply without a full re-review, `pr comment <pr>` needs a
+worktree to resolve against; re-fetch one via FETCH's steps 1-2 first, then
+`worktree remove pr-<N>` again when done.
+
 ## Rules
 
 - Never post anything without the CONFIRM step, **and CONFIRM always shows

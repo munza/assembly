@@ -56,6 +56,17 @@ type Task struct {
 	AgentName string `json:"agent_name,omitempty"`
 }
 
+// WatchedPR tracks comment/review activity on a PR you reviewed but don't
+// own -- no worktree survives pipeline review's CLEANUP to hang this off of,
+// so it gets its own minimal record. Removed once the PR is merged or
+// closed.
+type WatchedPR struct {
+	Project      string `json:"project"`
+	PR           int    `json:"pr"`
+	SeenComments int    `json:"seen_comments,omitempty"`
+	SelfComments []int  `json:"self_comments,omitempty"`
+}
+
 type Message struct {
 	ID       string    `json:"id"`
 	TaskID   string    `json:"task_id,omitempty"`
@@ -72,7 +83,8 @@ type Message struct {
 }
 
 type State struct {
-	Projects  map[string]*ProjectState `json:"projects"`
-	Worktrees map[string]*Worktree     `json:"worktrees"`
-	Tasks     map[string]*Task         `json:"tasks"`
+	Projects   map[string]*ProjectState `json:"projects"`
+	Worktrees  map[string]*Worktree     `json:"worktrees"`
+	Tasks      map[string]*Task         `json:"tasks"`
+	WatchedPRs map[string]*WatchedPR    `json:"watched_prs,omitempty"`
 }

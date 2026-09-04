@@ -51,6 +51,14 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 		}
 		sort.Strings(names)
 	}
+	me := ""
+	if opts.PRs {
+		if login, uerr := git.CurrentUserLogin(); uerr == nil {
+			me = login
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: could not resolve current gh user: %v\n", uerr)
+		}
+	}
 	events := 0
 	for _, name := range names {
 		repo := st.Projects[name].Repo
@@ -59,49 +67,36 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 				if wt.PR == 0 {
 					continue
 				}
-				v, err := git.PrView(repo, wt.PR, true)
+				n, body, v, newSeen, err := newCommentActivity(repo, wt.PR, wt.SeenComments, wt.SelfComments, me)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 					continue
 				}
-				count := 0
-				if comments, ok := v["comments"].([]any); ok {
-					for _, c := range comments {
-						cm, _ := c.(map[string]any)
-						if !isSelfComment(cm["databaseId"], wt.SelfComments) {
-							count++
-						}
-					}
-				}
-				if reviews, ok := v["reviews"].([]any); ok {
-					for _, r := range reviews {
-						rm, _ := r.(map[string]any)
-						body, _ := rm["body"].(string)
-						if strings.TrimSpace(body) != "" {
-							count++
-						}
-					}
-				}
-				var inline []map[string]any
-				if ic, ierr := git.PRReviewComments(repo, wt.PR); ierr == nil {
-					for _, c := range ic {
-						if !isSelfComment(c["id"], wt.SelfComments) {
-							inline = append(inline, c)
-						}
-					}
-					count += len(inline)
-				}
-				if count > wt.SeenComments {
-					n := count - wt.SeenComments
-					body := fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, wt.PR)
-					if detail := commentDetail(v, inline); detail != "" {
-						body += "\n" + detail
-					}
+				if n > 0 {
 					appendWorktreeEvent(wt, body)
 					events += n
-					wt.SeenComments = count
+					wt.SeenComments = newSeen
 				}
 				if updateWorktreeFromPR(s, wt, v) {
+					events++
+				}
+			}
+			for key, wp := range s.WatchedPRs {
+				if wp.Project != name {
+					continue
+				}
+				n, body, v, newSeen, err := newCommentActivity(repo, wp.PR, wp.SeenComments, wp.SelfComments, me)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+					continue
+				}
+				if n > 0 {
+					appendWatchedPREvent(wp, body)
+					events += n
+					wp.SeenComments = newSeen
+				}
+				if state, _ := v["state"].(string); state == "MERGED" || state == "CLOSED" {
+					delete(s.WatchedPRs, key)
 					events++
 				}
 			}
@@ -126,6 +121,63 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 		}
 	}
 	return events, nil
+}
+
+// newCommentActivity compares a PR's current non-self comment/review count
+// against seenComments, returning how many are new, a human-readable
+// summary of them, the raw PR view (for callers that also derive status
+// from it), and the updated seen count. Shared between worktree-owned PRs
+// and WatchedPRs (reviewed but not owned) -- the counting is identical,
+// only where the result gets recorded differs.
+//
+// me (the authenticated user's login, "" if it couldn't be resolved) is
+// filtered out of every category, not just comments: leaving your own
+// review is exactly how a WatchedPR starts, and its body alone would
+// otherwise look like "1 new comment" on the very next poll. selfComments
+// (by ID) stays as an additional, narrower check for replies posted
+// through foreman specifically -- it still matters for e.g. a comment
+// authored by a bot/service account posting on your behalf.
+func newCommentActivity(repo string, pr, seenComments int, selfComments []int, me string) (n int, body string, v map[string]any, newSeen int, err error) {
+	v, err = git.PrView(repo, pr, true)
+	if err != nil {
+		return 0, "", nil, seenComments, err
+	}
+	count := 0
+	if comments, ok := v["comments"].([]any); ok {
+		for _, c := range comments {
+			cm, _ := c.(map[string]any)
+			if !isSelfComment(cm["databaseId"], selfComments) && authorLogin(cm) != me {
+				count++
+			}
+		}
+	}
+	if reviews, ok := v["reviews"].([]any); ok {
+		for _, r := range reviews {
+			rm, _ := r.(map[string]any)
+			body, _ := rm["body"].(string)
+			if strings.TrimSpace(body) != "" && authorLogin(rm) != me {
+				count++
+			}
+		}
+	}
+	var inline []map[string]any
+	if ic, ierr := git.PRReviewComments(repo, pr); ierr == nil {
+		for _, c := range ic {
+			if !isSelfComment(c["id"], selfComments) && userLogin(c) != me {
+				inline = append(inline, c)
+			}
+		}
+		count += len(inline)
+	}
+	if count <= seenComments {
+		return 0, "", v, seenComments, nil
+	}
+	n = count - seenComments
+	body = fmt.Sprintf("%d new comment(s)/review(s) on PR #%d", n, pr)
+	if detail := commentDetail(v, inline); detail != "" {
+		body += "\n" + detail
+	}
+	return n, body, v, count, nil
 }
 
 func updateWorktreeFromPR(s *store.State, wt *store.Worktree, v map[string]any) bool {
@@ -265,6 +317,16 @@ func appendEvent(target, body string) {
 
 func appendWorktreeEvent(wt *store.Worktree, body string) {
 	m := &store.Message{From: "watch", TaskID: wt.Slug, Project: wt.Project, Worktree: wt.Slug, IssueID: wt.IssueID, Body: body}
+	if err := store.AppendMessage(m); err != nil {
+		logf("append event: %v", err)
+	}
+}
+
+// appendWatchedPREvent is appendWorktreeEvent's counterpart for a PR you
+// reviewed but don't own -- there's no worktree/slug to hang the message
+// off of, so TaskID identifies it as "pr-<N>" instead.
+func appendWatchedPREvent(wp *store.WatchedPR, body string) {
+	m := &store.Message{From: "watch", TaskID: fmt.Sprintf("pr-%d", wp.PR), Project: wp.Project, Body: body}
 	if err := store.AppendMessage(m); err != nil {
 		logf("append event: %v", err)
 	}

@@ -51,6 +51,19 @@ func GhAvailable() bool {
 	return err == nil
 }
 
+// CurrentUserLogin returns the authenticated gh user's login, for filtering
+// your own activity out of "new comment" polling (comments you post
+// yourself through means other than foreman -- e.g. GitHub's own UI --
+// aren't in a SelfComments list, but are still never worth notifying
+// yourself about).
+func CurrentUserLogin() (string, error) {
+	out, err := run("", "api", "user", "-q", ".login")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func PrCreate(dir, repo, title, body, base, head string) (string, bool, error) {
 	args := []string{"pr", "create", "--title", title, "--body", body, "--head", head}
 	if repo != "" {
