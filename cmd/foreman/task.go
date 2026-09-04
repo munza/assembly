@@ -19,6 +19,11 @@ import (
 
 var taskTypes = []string{"plan", "research", "build", "test", "fix", "review", "respond"}
 
+// taskStages are the pipeline stage tags `task add --stage` accepts. They
+// disambiguate same-typed tasks in `pipeline status` (doc and build are both
+// type build; lint and test are both type test).
+var taskStages = []string{"plan", "research", "build", "test", "review", "fix", "doc", "lint", "respond"}
+
 type taskRow struct {
 	ID       string `json:"id"`
 	Worktree string `json:"worktree"`
@@ -36,10 +41,10 @@ type statusFilter struct {
 
 func newTaskCmd() *cobra.Command {
 	var (
-		addSlug, addType, addNote, addWorktree string
-		addGeneral, addThread                  bool
-		listFilter                             statusFilter
-		updateStatus, updateNote               string
+		addSlug, addType, addNote, addWorktree, addStage string
+		addGeneral, addThread                            bool
+		listFilter                                       statusFilter
+		updateStatus, updateNote                         string
 	)
 
 	list := &cobra.Command{
@@ -83,7 +88,7 @@ func newTaskCmd() *cobra.Command {
 			} else if addGeneral {
 				noteKind = "general"
 			}
-			t, err := addTask(addType, addNote, addSlug, addWorktree, noteKind)
+			t, err := addTask(addType, addNote, addSlug, addWorktree, addStage, noteKind)
 			if err != nil {
 				return err
 			}
@@ -97,6 +102,7 @@ func newTaskCmd() *cobra.Command {
 		},
 	}
 	add.Flags().StringVar(&addSlug, "slug", "", "short slug used as tab/agent label; a repeat auto-rounds to slug-r2, -r3, ...")
+	add.Flags().StringVar(&addStage, "stage", "", "pipeline stage tag: "+strings.Join(taskStages, "|"))
 	add.Flags().StringVar(&addType, "type", "", "task type: "+strings.Join(taskTypes, "|"))
 	add.Flags().StringVar(&addNote, "note", "", "what the task should do")
 	add.Flags().StringVar(&addWorktree, "worktree", "", "target worktree (defaults to the only worktree)")
@@ -396,12 +402,15 @@ func runTaskAgent(s *store.State, t *store.Task) error {
 	return nil
 }
 
-func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error) {
+func addTask(typ, note, slug, worktreeRef, stage, noteKind string) (*store.Task, error) {
 	if typ == "" {
 		return nil, fmt.Errorf("--type is required: %s", strings.Join(taskTypes, "|"))
 	}
 	if !slices.Contains(taskTypes, typ) {
 		return nil, fmt.Errorf("invalid type %q; valid: %s", typ, strings.Join(taskTypes, "|"))
+	}
+	if stage != "" && !slices.Contains(taskStages, stage) {
+		return nil, fmt.Errorf("invalid stage %q; valid: %s", stage, strings.Join(taskStages, "|"))
 	}
 	if note == "" {
 		return nil, fmt.Errorf("--note is required")
@@ -441,6 +450,7 @@ func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error)
 	t := &store.Task{
 		ID:       store.NewTaskID(s),
 		Slug:     slug,
+		Stage:    stage,
 		Worktree: wt.Slug,
 		Type:     typ,
 		Status:   store.TaskPending,

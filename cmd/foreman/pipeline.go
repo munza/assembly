@@ -217,12 +217,239 @@ func newPipelineCmd() *cobra.Command {
 		},
 	}
 
+	status := &cobra.Command{
+		Use:   "status <worktree>",
+		Short: "Render the pipeline progress lines (plan/build/pr) from state",
+		Long: "The progress view, derived — not hand-drawn: done stages (●), the\n" +
+			"running stage with its task id and round suffix (◉), blocked or\n" +
+			"failed (✗), not started (○), per half. Halves the cursor has passed\n" +
+			"are shown complete; respond and review annotate their line. Show\n" +
+			"this output verbatim on every pipeline update instead of\n" +
+			"recomposing it by hand.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			p, wt, err := resolvePipeline(s, args[0])
+			if err != nil {
+				return err
+			}
+			lines := renderPipelineStatus(s, wt, p)
+			output(struct {
+				Worktree string   `json:"worktree"`
+				Half     string   `json:"half"`
+				Hold     string   `json:"hold,omitempty"`
+				Lines    []string `json:"lines"`
+			}{p.Worktree, p.Half, wt.Hold, lines}, func() {
+				for _, l := range lines {
+					fmt.Println(l)
+				}
+			})
+			return nil
+		},
+	}
+
 	cmd := &cobra.Command{
 		Use:   "pipeline",
 		Short: "Track each worktree's pipeline: current half and output documents",
 	}
-	cmd.AddCommand(list, add, get, update, report)
+	cmd.AddCommand(list, add, get, status, update, report)
 	return cmd
+}
+
+// renderPipelineStatus derives the progress lines from state: the pipeline
+// cursor (half), the worktree (PR, status), and tasks grouped by stage (the
+// Stage tag, falling back to slug stems for tasks created before it
+// existed). Rounds come from the auto-appended -rN slug suffix.
+func renderPipelineStatus(s *store.State, wt *store.Worktree, p *store.Pipeline) []string {
+	tasks := store.WorktreeTasks(s, wt.Slug)
+	byStage := func(match func(*store.Task) bool) *store.Task {
+		var latest *store.Task
+		for _, t := range tasks {
+			if match(t) && (latest == nil || t.ID > latest.ID) {
+				latest = t
+			}
+		}
+		return latest
+	}
+	is := func(stage string) func(*store.Task) bool {
+		return func(t *store.Task) bool { return t.Stage == stage }
+	}
+	// slug-stem fallbacks cover tasks created before --stage existed
+	doc := byStage(is("doc"))
+	if doc == nil {
+		doc = byStage(func(t *store.Task) bool {
+			return t.Stage == "" && t.Type == "build" && strings.HasPrefix(t.Slug, "doc-")
+		})
+	}
+	lint := byStage(is("lint"))
+	if lint == nil {
+		lint = byStage(func(t *store.Task) bool {
+			return t.Stage == "" && t.Type == "test" && strings.HasPrefix(t.Slug, "lint")
+		})
+	}
+	noStage := func(typ string) func(*store.Task) bool {
+		return func(t *store.Task) bool { return t.Stage == "" && t.Type == typ }
+	}
+	pick := func(stage, typ string, tagged *store.Task) *store.Task {
+		if tagged != nil {
+			return tagged
+		}
+		return byStage(noStage(typ))
+	}
+	stages := map[string]*store.Task{
+		"plan": pick("plan", "plan", byStage(is("plan"))),
+		"build": byStage(func(t *store.Task) bool {
+			return t.Stage == "build" || (t.Stage == "" && t.Type == "build" && !strings.HasPrefix(t.Slug, "doc-"))
+		}),
+		"test": byStage(func(t *store.Task) bool {
+			return t.Stage == "test" || (t.Stage == "" && t.Type == "test" && !strings.HasPrefix(t.Slug, "lint"))
+		}),
+		"review":  pick("review", "review", byStage(is("review"))),
+		"fix":     byStage(is("fix")),
+		"doc":     doc,
+		"lint":    lint,
+		"respond": pick("respond", "respond", byStage(is("respond"))),
+	}
+
+	researchRunning := false
+	researchDone := false
+	for _, t := range tasks {
+		if t.Type != "research" {
+			continue
+		}
+		if t.Status == store.TaskDone || t.Status == store.TaskFailed {
+			researchDone = true
+		} else {
+			researchRunning = true
+		}
+	}
+
+	mark := func(t *store.Task) string {
+		if t == nil {
+			return "○"
+		}
+		switch t.Status {
+		case store.TaskDone:
+			return "●"
+		case store.TaskBlocked, store.TaskFailed:
+			return "✗"
+		default:
+			return "◉"
+		}
+	}
+	detail := func(t *store.Task) string {
+		if t == nil {
+			return ""
+		}
+		d := " (" + t.ID
+		if r := roundSuffix(t.Slug); r != "" {
+			d += " " + r
+		}
+		switch t.Status {
+		case store.TaskDone:
+			d += " ✓"
+		case store.TaskBlocked:
+			d += " blocked"
+		case store.TaskFailed:
+			d += " failed"
+		}
+		return d + ")"
+	}
+	// doneHalf: handovers imply completion of every earlier half
+	doneHalf := func(h string) bool {
+		cur := p.Half
+		if cur == "respond" {
+			cur = "pr"
+		}
+		if cur == "review" {
+			return false
+		}
+		if cur == "done" {
+			return true
+		}
+		return (cur == "pr" && h != "pr") || (cur == "build" && h == "plan")
+	}
+
+	issueMark := "○"
+	if wt.IssueID != "" || wt.Path != "" {
+		issueMark = "●"
+	}
+	wtMark := "○"
+	if wt.Path != "" {
+		wtMark = "●"
+	}
+	resMark := "○"
+	if researchRunning {
+		resMark = "◉"
+	} else if researchDone {
+		resMark = "●"
+	}
+	if doneHalf("plan") {
+		issueMark, wtMark, resMark = "●", "●", "●"
+	}
+	planMark := mark(stages["plan"])
+	if doneHalf("plan") {
+		planMark = "●"
+	}
+	planLine := "plan:   " + issueMark + " ISSUE ── " + wtMark + " WORKTREE ── " + resMark + " RESEARCH ── " + planMark + " PLAN" + detail(stages["plan"])
+
+	buildMark, testMark, reviewMark := mark(stages["build"]), mark(stages["test"]), mark(stages["review"])
+	if doneHalf("build") {
+		buildMark, testMark, reviewMark = "●", "●", "●"
+	}
+	buildLine := "build:  " + buildMark + " BUILD" + detail(stages["build"]) +
+		" ── " + testMark + " TEST" + detail(stages["test"]) +
+		" ── " + reviewMark + " REVIEW" + detail(stages["review"])
+
+	prMark, prName := "○", "PR"
+	if wt.PR > 0 {
+		prMark, prName = "●", fmt.Sprintf("PR#%d", wt.PR)
+	}
+	ciMark := "○"
+	if wt.Status == store.WtReadyForMerge || wt.Status == store.WtDone {
+		ciMark = "●"
+	}
+	watchMark := "○"
+	if wt.PR > 0 && wt.Status != store.WtDone {
+		watchMark = "◉"
+	}
+	mergedMark := "○"
+	if wt.Status == store.WtDone {
+		mergedMark = "●"
+		watchMark = "●"
+	}
+	if p.Half == "done" {
+		ciMark, watchMark, mergedMark = "●", "●", "●"
+	}
+	prLine := "pr:     " + mark(stages["doc"]) + " DOC" + detail(stages["doc"]) +
+		" ── " + mark(stages["lint"]) + " LINT" + detail(stages["lint"]) +
+		" ── " + prMark + " " + prName +
+		" ── " + ciMark + " CI ── " + watchMark + " WATCH ── " + mergedMark + " MERGED"
+
+	lines := []string{planLine, buildLine, prLine}
+	if p.Half == "respond" {
+		lines = append(lines, "respond: ◉ RESPOND"+detail(stages["respond"])+" (pr half's WATCH loop)")
+	}
+	if p.Half == "review" {
+		lines = append(lines, "review: ◉ REVIEW"+detail(stages["review"])+" — confirm/post/cleanup are agent-side (references/review.md)")
+	}
+	return lines
+}
+
+func roundSuffix(slug string) string {
+	i := strings.LastIndex(slug, "-r")
+	if i < 0 || i+2 >= len(slug) {
+		return ""
+	}
+	for _, c := range slug[i+2:] {
+		if c < '0' || c > '9' {
+			return ""
+		}
+	}
+	return "r" + slug[i+2:]
 }
 
 func validPipelineHalf(h string) bool {

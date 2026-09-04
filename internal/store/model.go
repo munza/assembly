@@ -46,6 +46,7 @@ type Worktree struct {
 type Task struct {
 	ID        string `json:"id"`
 	Slug      string `json:"slug,omitempty"`
+	Stage     string `json:"stage,omitempty"`
 	Worktree  string `json:"worktree"`
 	Type      string `json:"type"`
 	Status    string `json:"status"`
