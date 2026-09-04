@@ -413,26 +413,31 @@ func newWorktreeCmd() *cobra.Command {
 }
 
 func newResumeTopCmd() *cobra.Command {
+	var refTask, refWorktree string
 	c := &cobra.Command{
-		Use:   "resume [task-id|worktree]",
+		Use:   "resume [--task <id> | --worktree <slug>]",
 		Short: "Resume a held pipeline step: by task, worktree, or the only hold",
-		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return fmt.Errorf("pass --task <id> or --worktree <slug>, not a positional argument")
+			}
 			s, err := store.Load()
 			if err != nil {
 				return err
 			}
 			slug := ""
-			if len(args) == 1 {
-				ref := args[0]
-				if t, terr := store.ResolveTask(s, ref); terr == nil {
-					slug = t.Worktree
-				} else if _, werr := store.ResolveWorktree(s, ref); werr == nil {
-					slug = ref
-				} else {
-					return fmt.Errorf("%q is neither a task nor a worktree", ref)
-				}
-			} else {
+			if refTask != "" {
+				t, terr := store.ResolveTask(s, refTask)
+				if terr != nil {
+				return terr
+			}
+			slug = t.Worktree
+		} else if refWorktree != "" {
+			if _, werr := store.ResolveWorktree(s, refWorktree); werr != nil {
+				return werr
+			}
+			slug = refWorktree
+		} else {
 				var held []string
 				for _, wt := range s.Worktrees {
 					if wt.Hold != "" {
@@ -471,6 +476,8 @@ func newResumeTopCmd() *cobra.Command {
 			return nil
 		},
 	}
+	c.Flags().StringVar(&refTask, "task", "", "resume via a task id (its worktree's hold)")
+	c.Flags().StringVar(&refWorktree, "worktree", "", "resume a worktree's hold")
 	return c
 }
 

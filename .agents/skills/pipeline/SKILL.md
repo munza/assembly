@@ -77,7 +77,8 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    re-derive the stage from `task list --worktree <slug>`, and re-ask or
    re-dispatch exactly what the note says. `status` shows holds, `task list`
    marks tasks of held worktrees, and `foreman resume` (top level, no arg)
-   resumes the only hold — or pass a task id / worktree slug.
+   resumes the only hold — or `foreman resume --task <id>` /
+   `foreman resume --worktree <slug>`.
 10. **Never block on watchman**: after dispatching, restarting the daemon, or
    any push-based step, end the turn — reports and events arrive here on
    their own. Use `watchman status` (instant) for health, never `sleep` or
