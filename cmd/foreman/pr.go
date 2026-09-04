@@ -619,6 +619,9 @@ func printPR(v map[string]any) {
 			}
 		}
 		fmt.Printf("ci:      %d pass, %d fail, %d pending\n", pass, fail, pending)
+		if pending > 0 {
+			fmt.Printf("         (pending is not red: freshly pushed commits reset the rollup; wait for the next poll or re-check)\n")
+		}
 	}
 	if comments, ok := v["comments"].([]any); ok {
 		if len(comments) > 0 {

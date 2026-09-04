@@ -53,8 +53,9 @@ type worktreeRow struct {
 // the checkout itself, the project worktree init, and state registration.
 // Returns nil (after printing what it would do) under --dry-run.
 func createWorktree(s *store.State, p *projView, slug, issueID, base string) (*store.Worktree, error) {
-	if _, ok := s.Worktrees[slug]; ok {
-		return nil, fmt.Errorf("worktree %q already exists", slug)
+	if existing, ok := s.Worktrees[slug]; ok {
+		fmt.Printf("worktree %q already exists (branch %s); reusing\n", slug, existing.Branch)
+		return existing, nil
 	}
 	if !isValidSlug(slug) {
 		return nil, fmt.Errorf("%q is not a valid worktree slug (lowercase letters, digits, hyphens)", slug)
