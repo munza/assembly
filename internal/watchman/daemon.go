@@ -177,11 +177,7 @@ func Run(opts Options) error {
 
 // deliver pushes unread worker and watch messages into the foreman tab and
 // marks them read. Messages the foreman itself sent are skipped: mailbox send
-// already delivered those into the worker's tab. All pending messages go in
-// one herdr agent prompt call rather than one per message: each call types
-// into the pane's live input line (herdr has no way to check for unsent
-// human input there first), so fewer calls means fewer chances to collide
-// with someone mid-keystroke.
+// already delivered those into the worker's tab.
 func deliver(pane string) {
 	if pane == "" {
 		return
@@ -191,28 +187,17 @@ func deliver(pane string) {
 		logf("mailbox: %v", err)
 		return
 	}
-	var pending []*store.Message
 	for _, m := range ms {
 		if m.From == "foreman" {
 			continue
 		}
-		pending = append(pending, m)
-	}
-	if len(pending) == 0 {
-		return
-	}
-	texts := make([]string, len(pending))
-	ids := make([]string, len(pending))
-	for i, m := range pending {
-		texts[i] = PromptText(m)
-		ids[i] = m.ID
-	}
-	if err := mux.AgentPrompt(pane, strings.Join(texts, "\n\n")); err != nil {
-		logf("deliver: %v", err)
-		return
-	}
-	if err := store.MarkRead(ids...); err != nil {
-		logf("mark read: %v", err)
+		if err := mux.AgentPrompt(pane, PromptText(m)); err != nil {
+			logf("deliver: %v", err)
+			continue
+		}
+		if err := store.MarkRead(m.ID); err != nil {
+			logf("mark read %s: %v", m.ID, err)
+		}
 	}
 }
 

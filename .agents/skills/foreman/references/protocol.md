@@ -54,12 +54,6 @@ Keep this contract in sync with `buildPrompt` in `cmd/foreman/task.go`.
   unread worker/watch messages into the foreman tab via `herdr agent prompt
   <pane-id>`, marking them read — no polling anywhere. Messages the foreman
   itself sent are skipped: mailbox send already delivered those.
-- All messages pending at delivery time go in one `agent prompt` call, not
-  one per message: `herdr agent prompt` types straight into the pane's live
-  input line with no way to check for unsent human input there first, so
-  each call risks colliding with someone mid-keystroke — fewer calls means
-  less exposure, though it does not eliminate the race. A real fix needs a
-  herdr-side check (or a queue) for "this pane's input line isn't empty."
 
 ## Watch events
 
