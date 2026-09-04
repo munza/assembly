@@ -12,8 +12,8 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/git"
-	"assembly/internal/mux"
 	"assembly/internal/issue"
+	"assembly/internal/mux"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -46,6 +46,87 @@ type worktreeRow struct {
 	Branch  string `json:"branch"`
 	Status  string `json:"status"`
 	PR      string `json:"pr"`
+}
+
+// createWorktree is the shared core of `worktree add` and `pr checkout`:
+// validity checks, branch derivation, herdr workspace adoption/creation,
+// the checkout itself, the project worktree init, and state registration.
+// Returns nil (after printing what it would do) under --dry-run.
+func createWorktree(s *store.State, p *projView, slug, issueID, base string) (*store.Worktree, error) {
+	if _, ok := s.Worktrees[slug]; ok {
+		return nil, fmt.Errorf("worktree %q already exists", slug)
+	}
+	if !isValidSlug(slug) {
+		return nil, fmt.Errorf("%q is not a valid worktree slug (lowercase letters, digits, hyphens)", slug)
+	}
+	// pr-<N> worktrees must attach to the exact branch name the review
+	// pipeline already fetched (`git fetch origin pull/<N>/head:pr-<N>`);
+	// prefixing it would create an unrelated branch instead.
+	branch := slug
+	if !prRefPattern.MatchString(slug) {
+		branch = p.BranchPrefix + slug
+	}
+	if !mux.Available() {
+		return nil, fmt.Errorf("herdr not found in PATH")
+	}
+	if p.WorkspaceID == "" {
+		if id := findWorkspaceByRoot(p.Path); id != "" {
+			fmt.Printf("using existing workspace %s for project %s\n", id, p.Name)
+			p.WorkspaceID = id
+			if !flagDryRun {
+				if err := setProjectWorkspace(s, p.Name, id); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if p.WorkspaceID == "" {
+		if flagDryRun {
+			fmt.Println("would run: " + planRun("herdr", "workspace", "create", "--cwd", p.Path, "--label", p.Name, "--no-focus"))
+			return nil, nil
+		}
+		id, err := mux.WorkspaceCreate(p.Path, p.Name)
+		if err != nil {
+			return nil, err
+		}
+		p.WorkspaceID = id
+		if err := setProjectWorkspace(s, p.Name, id); err != nil {
+			return nil, err
+		}
+	}
+	if flagDryRun {
+		fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, branch, store.WtPlanning)
+		fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", branch, "--label", slug))
+		if p.WorktreeInit != "" {
+			fmt.Printf("would run worktree init: %s\n", p.WorktreeInit)
+		}
+		return nil, nil
+	}
+	wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, branch, base)
+	if err != nil {
+		return nil, err
+	}
+	if p.WorktreeInit != "" {
+		fmt.Printf("running worktree init: %s\n", p.WorktreeInit)
+		if err := runWorktreeInit(path, p.WorktreeInit); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: worktree init failed: %v\n", err)
+		}
+	}
+	wt := &store.Worktree{
+		Slug:        slug,
+		Project:     p.Name,
+		IssueID:     issueID,
+		Branch:      branch,
+		Path:        path,
+		WorkspaceID: wsID,
+		RootTabID:   rootTabID,
+		Status:      store.WtPlanning,
+	}
+	s.Worktrees[slug] = wt
+	if err := store.Save(s); err != nil {
+		return nil, err
+	}
+	return wt, nil
 }
 
 func newWorktreeCmd() *cobra.Command {
@@ -127,19 +208,6 @@ func newWorktreeCmd() *cobra.Command {
 					return err
 				}
 			}
-			if !isValidSlug(slug) {
-				return fmt.Errorf("%q is not a valid worktree slug (lowercase letters, digits, hyphens)", slug)
-			}
-			if _, ok := s.Worktrees[slug]; ok {
-				return fmt.Errorf("worktree %q already exists", slug)
-			}
-			// pr-<N> worktrees must attach to the exact branch name the review
-			// pipeline already fetched (`git fetch origin pull/<N>/head:pr-<N>`);
-			// prefixing it would create an unrelated branch instead.
-			branch := slug
-			if !prRefPattern.MatchString(slug) {
-				branch = p.BranchPrefix + slug
-			}
 			title := ""
 			if issueID != "" {
 				if issue, err := issue.GetIssue(issueID, config.LinearAPIKey()); err == nil {
@@ -148,73 +216,20 @@ func newWorktreeCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "warning: could not fetch issue %s: %v\n", issueID, err)
 				}
 			}
-			if !mux.Available() {
-				return fmt.Errorf("herdr not found in PATH")
-			}
-			if p.WorkspaceID == "" {
-				if id := findWorkspaceByRoot(p.Path); id != "" {
-					fmt.Printf("using existing workspace %s for project %s\n", id, p.Name)
-					p.WorkspaceID = id
-					if !flagDryRun {
-						if err := setProjectWorkspace(s, p.Name, id); err != nil {
-							return err
-						}
-					}
-				}
-			}
-			if p.WorkspaceID == "" {
-				if flagDryRun {
-					fmt.Println("would run: " + planRun("herdr", "workspace", "create", "--cwd", p.Path, "--label", p.Name, "--no-focus"))
-					return nil
-				}
-				id, err := mux.WorkspaceCreate(p.Path, p.Name)
-				if err != nil {
-					return err
-				}
-				p.WorkspaceID = id
-				if err := setProjectWorkspace(s, p.Name, id); err != nil {
-					return err
-				}
-			}
-			if flagDryRun {
-				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, branch, store.WtPlanning)
-				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", branch, "--label", slug))
-				if p.WorktreeInit != "" {
-					fmt.Printf("would run worktree init: %s\n", p.WorktreeInit)
-				}
-				return nil
-			}
-			wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, branch, addBase)
+			wt, err := createWorktree(s, p, slug, issueID, addBase)
 			if err != nil {
 				return err
 			}
-			if p.WorktreeInit != "" {
-				fmt.Printf("running worktree init: %s\n", p.WorktreeInit)
-				if err := runWorktreeInit(path, p.WorktreeInit); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: worktree init failed: %v\n", err)
-				}
-			}
-			wt := &store.Worktree{
-				Slug:        slug,
-				Project:     p.Name,
-				IssueID:     issueID,
-				Branch:      branch,
-				Path:        path,
-				WorkspaceID: wsID,
-				RootTabID:   rootTabID,
-				Status:      store.WtPlanning,
-			}
-			s.Worktrees[slug] = wt
-			if err := store.Save(s); err != nil {
-				return err
+			if flagDryRun {
+				return nil
 			}
 			output(wt, func() {
-				fmt.Printf("created worktree %s (branch %s) in workspace %s\n", slug, branch, wsID)
+				fmt.Printf("created worktree %s (branch %s) in workspace %s\n", wt.Slug, wt.Branch, wt.WorkspaceID)
 				if title != "" {
 					fmt.Printf("issue: %s %s\n", issueID, title)
 				}
-				if path != "" {
-					fmt.Printf("path: %s\n", path)
+				if wt.Path != "" {
+					fmt.Printf("path: %s\n", wt.Path)
 				}
 			})
 			return nil
@@ -447,15 +462,15 @@ func newResumeTopCmd() *cobra.Command {
 			if refTask != "" {
 				t, terr := store.ResolveTask(s, refTask)
 				if terr != nil {
-				return terr
-			}
-			slug = t.Worktree
-		} else if refWorktree != "" {
-			if _, werr := store.ResolveWorktree(s, refWorktree); werr != nil {
-				return werr
-			}
-			slug = refWorktree
-		} else {
+					return terr
+				}
+				slug = t.Worktree
+			} else if refWorktree != "" {
+				if _, werr := store.ResolveWorktree(s, refWorktree); werr != nil {
+					return werr
+				}
+				slug = refWorktree
+			} else {
 				var held []string
 				for _, wt := range s.Worktrees {
 					if wt.Hold != "" {
@@ -581,6 +596,20 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 			} else if wt.Path != "" {
 				if cerr := git.RemoveWorktreeCheckout(wt.Path); cerr != nil {
 					fmt.Fprintf(os.Stderr, "warning: %v\n", cerr)
+				}
+			}
+		}
+	}
+	// pr-<N> worktrees carry a fetched pr-<N> branch in the project repo that
+	// outlives the checkout; delete it so re-reviews start clean. Only now --
+	// git refuses to delete a branch that is still checked out.
+	if prRefPattern.MatchString(wt.Slug) {
+		if st, cerr := config.Load(); cerr == nil {
+			if proj, ok := st.Projects[wt.Project]; ok && proj != nil && proj.Path != "" {
+				if derr := git.DeleteBranch(proj.Path, wt.Slug); derr != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", derr)
+				} else {
+					fmt.Printf("deleted branch %s\n", wt.Slug)
 				}
 			}
 		}

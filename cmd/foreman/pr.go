@@ -320,11 +320,98 @@ func newPRCmd() *cobra.Command {
 	reviewCmd.Flags().IntVar(&reviewSubmit, "submit", 0, "publish a previously created pending review by its ID, with --verdict")
 	reviewCmd.Flags().StringVar(&reviewCommentsJSON, "comments-json", "", `inline comments, preferred over folding findings into --body: a JSON array like [{"path":"main.py","line":54,"body":"..."}]`)
 
+	var checkoutProject string
+	checkout := &cobra.Command{
+		Use:   "checkout <pr-number>",
+		Short: "Materialize a PR as a pr-<N> review worktree (creates or updates it)",
+		Long: "Fetches the PR's head and creates a pr-<N> worktree for reviewing it,\n" +
+			"or, when that worktree already exists, hard-resets its checkout to the\n" +
+			"current PR head (review checkouts are disposable -- local changes are\n" +
+			"discarded). Re-running after the author pushes is safe and cheap. `worktree\n" +
+			"remove pr-<N>` also deletes the fetched pr-<N> branch.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prNum, err := strconv.Atoi(args[0])
+			if err != nil || prNum <= 0 {
+				return fmt.Errorf("%q is not a PR number", args[0])
+			}
+			slug := fmt.Sprintf("pr-%d", prNum)
+			s, err := store.Load()
+			if err != nil {
+				return err
+			}
+			st, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if wt, ok := s.Worktrees[slug]; ok {
+				if wt.Path == "" {
+					return fmt.Errorf("worktree %s exists but has no path; remove it first", slug)
+				}
+				if flagDryRun {
+					fmt.Printf("would run: git -C %s fetch origin pull/%d/head\n", wt.Path, prNum)
+					fmt.Printf("would run: git -C %s reset --hard FETCH_HEAD\n", wt.Path)
+					return nil
+				}
+				if err := git.FetchPRHead(wt.Path, prNum); err != nil {
+					return err
+				}
+				if err := git.ResetToFetchHead(wt.Path); err != nil {
+					return err
+				}
+				fmt.Printf("updated worktree %s to the current head of PR #%d\n", slug, prNum)
+				return nil
+			}
+			var p *projView
+			if checkoutProject != "" {
+				p, err = resolveProjectView(s, st, checkoutProject)
+			} else {
+				views := sortedProjectViews(s, st)
+				if len(views) == 1 {
+					p = views[0]
+				} else {
+					names := make([]string, len(views))
+					for i, v := range views {
+						names[i] = v.Name
+				}
+					return fmt.Errorf("pass --project (%s)", strings.Join(names, ", "))
+				}
+			}
+			if err != nil {
+				return err
+			}
+			if flagDryRun {
+				fmt.Printf("would run: git -C %s fetch origin pull/%d/head\n", p.Path, prNum)
+				fmt.Printf("would run: git -C %s branch -f %s FETCH_HEAD\n", p.Path, slug)
+				if _, cerr := createWorktree(s, p, slug, "", ""); cerr != nil {
+					return cerr
+				}
+				return nil
+			}
+			if err := git.FetchPRHead(p.Path, prNum); err != nil {
+				return err
+			}
+			if err := git.PointBranchAtFetchHead(p.Path, slug); err != nil {
+				return err
+			}
+			wt, err := createWorktree(s, p, slug, "", "")
+			if err != nil {
+				return err
+			}
+			fmt.Printf("checked out PR #%d as worktree %s\n", prNum, wt.Slug)
+			if wt.Path != "" {
+				fmt.Printf("path: %s\n", wt.Path)
+			}
+			return nil
+		},
+	}
+	checkout.Flags().StringVar(&checkoutProject, "project", "", "project name (defaults to the only registered project)")
+
 	cmd := &cobra.Command{
 		Use:   "pr",
 		Short: "Create and inspect GitHub pull requests",
 	}
-	cmd.AddCommand(create, get, commentCmd, reviewCmd)
+	cmd.AddCommand(create, get, commentCmd, reviewCmd, checkout)
 	return cmd
 }
 

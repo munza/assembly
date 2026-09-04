@@ -102,6 +102,43 @@ func Push(dir, branch string) error {
 	return nil
 }
 
+// FetchPRHead fetches a PR's head into FETCH_HEAD without touching any
+// branch: `git fetch origin pull/N/head` without a destination ref.
+func FetchPRHead(dir string, pr int) error {
+	return runGit(dir, "fetch", "origin", fmt.Sprintf("pull/%d/head", pr))
+}
+
+// PointBranchAtFetchHead creates or force-moves a branch to what the last
+// FetchPRHead fetched. Fails when the branch is checked out in a worktree;
+// use ResetToFetchHead there instead.
+func PointBranchAtFetchHead(dir, branch string) error {
+	return runGit(dir, "branch", "-f", branch, "FETCH_HEAD")
+}
+
+// ResetToFetchHead hard-resets the current branch of the checkout in dir to
+// what the last FetchPRHead fetched. For disposable review checkouts only.
+func ResetToFetchHead(dir string) error {
+	return runGit(dir, "reset", "--hard", "FETCH_HEAD")
+}
+
+func DeleteBranch(dir, branch string) error {
+	return runGit(dir, "branch", "-D", branch)
+}
+
+func runGit(dir string, args ...string) error {
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
+	}
+	return nil
+}
+
 func parseRepo(url string) string {
 	u := strings.TrimSuffix(strings.TrimSpace(url), ".git")
 	if i := strings.Index(u, "://"); i >= 0 {
