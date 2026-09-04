@@ -23,16 +23,27 @@ where the user is the requested reviewer (mailbox delivery surfaces
    scope; check the diff against the PR description" --worktree pr-<N>
    --slug review-pr-<N>`, then `task execute`. The worker's done message ends
    with `FINDINGS: none` or numbered findings — always share them verbatim.
-3. **CONFIRM** — `ask_user_question` quoting the findings verbatim:
-   - Post the review as-is — verdict auto-picked: `FINDINGS: none` →
-     approve; numbered findings → `request-changes` (or `comment` if the
-     user prefers).
-   - Don't post.
-   - Or the user types their own review text (posted instead).
-4. **POST** — `pr review <N> --verdict <approve|comment|request-changes>
-   --body "<findings text>"` (repo resolves via the `pr-<N>` worktree).
+3. **CONFIRM** — one `ask_user_question` call, two questions, quoting the
+   findings verbatim:
+   1. Post the review as-is — verdict auto-picked: `FINDINGS: none` →
+      approve; numbered findings → `request-changes` (or `comment` if the
+      user prefers). / Don't post. / Or the user types their own review
+      text (posted instead).
+   2. Publish it now, or leave it pending on GitHub? Options: `Publish
+      immediately (Recommended)` / `Leave pending — visible only to you,
+      so you can review or edit it on GitHub before publishing`.
+4. **POST**:
+   - Publish immediately → `pr review <N> --verdict <approve|comment|request-changes>
+     --body "<findings text>"` (repo resolves via the `pr-<N>` worktree).
+   - Leave pending → `pr review <N> --pending --body "<findings text>"`.
+     Its output includes the review ID and the GitHub URL — share both with
+     the user and tell them how to publish it later: either from GitHub's
+     own review UI, or `pr review <N> --verdict <verdict> --submit <review-id>`.
 5. **CLEANUP** — `worktree remove pr-<N>`, then
-   `git -C <project-path> branch -D pr-<N>`. Summarize for the user.
+   `git -C <project-path> branch -D pr-<N>`. Runs either way — the pending
+   review lives on GitHub, not in the local checkout. Summarize for the
+   user; if the review was left pending, say so plainly (this pass isn't
+   fully done from GitHub's perspective until they publish it).
 
 ## Rules
 

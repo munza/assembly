@@ -105,6 +105,9 @@ foreman
                              #  or a threaded reply to an inline review comment
     review <pr-number>       # --verdict approve|comment|request-changes --body <text>
                              #  submit a review (repo from --repo or the pr-N worktree)
+                             #  --pending leaves it pending (visible only to you) instead
+                             #  of submitting; --submit <review-id> --verdict ... publishes
+                             #  a pending review later
     get <pr|worktree>        # --comments
   mailbox
     inbox                    # --unread to show only unread

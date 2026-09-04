@@ -213,9 +213,11 @@ func newPRCmd() *cobra.Command {
 	commentCmd.Flags().IntVar(&commentReplyID, "reply", 0, "inline comment ID to reply to (thread reply)")
 
 	var reviewVerdict, reviewBody, reviewRepo string
+	var reviewPending bool
+	var reviewSubmit int
 	reviewCmd := &cobra.Command{
 		Use:   "review <pr-number>",
-		Short: "Submit a PR review (approve, comment, or request-changes)",
+		Short: "Submit a PR review, or leave one pending for you to publish later",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prNum, err := strconv.Atoi(args[0])
@@ -223,9 +225,6 @@ func newPRCmd() *cobra.Command {
 				return fmt.Errorf("%q is not a PR number", args[0])
 			}
 			verdicts := map[string]bool{"approve": true, "comment": true, "request-changes": true}
-			if !verdicts[reviewVerdict] {
-				return fmt.Errorf("--verdict is required: approve|comment|request-changes")
-			}
 			s, err := store.Load()
 			if err != nil {
 				return err
@@ -247,6 +246,36 @@ func newPRCmd() *cobra.Command {
 			if repo == "" {
 				return fmt.Errorf("cannot resolve repo; pass --repo owner/name (or --project context)")
 			}
+			if reviewSubmit > 0 {
+				if !verdicts[reviewVerdict] {
+					return fmt.Errorf("--verdict is required: approve|comment|request-changes")
+				}
+				if flagDryRun {
+					fmt.Printf("would run: gh api repos/%s/pulls/%d/reviews/%d/events -f event=<%s>\n", repo, prNum, reviewSubmit, reviewVerdict)
+					return nil
+				}
+				if err := git.PRReviewSubmitPending(repo, prNum, reviewSubmit, reviewVerdict); err != nil {
+					return err
+				}
+				fmt.Printf("submitted pending review %d on PR #%d as %s\n", reviewSubmit, prNum, reviewVerdict)
+				return nil
+			}
+			if reviewPending {
+				if flagDryRun {
+					fmt.Printf("would run: gh api repos/%s/pulls/%d/reviews -f body=%s (left pending)\n", repo, prNum, oneLine(reviewBody))
+					return nil
+				}
+				id, url, err := git.PRReviewPending(repo, prNum, reviewBody)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("left review %d pending on PR #%d (visible only to you): %s\n", id, prNum, url)
+				fmt.Printf("submit later with: pr review %d --verdict approve|comment|request-changes --submit %d\n", prNum, id)
+				return nil
+			}
+			if !verdicts[reviewVerdict] {
+				return fmt.Errorf("--verdict is required: approve|comment|request-changes")
+			}
 			if flagDryRun {
 				fmt.Printf("would run: gh pr review %d --repo %s --%s (body: %s)\n", prNum, repo, reviewVerdict, oneLine(reviewBody))
 				return nil
@@ -261,6 +290,8 @@ func newPRCmd() *cobra.Command {
 	reviewCmd.Flags().StringVar(&reviewVerdict, "verdict", "", "approve|comment|request-changes")
 	reviewCmd.Flags().StringVar(&reviewBody, "body", "", "review body (the findings)")
 	reviewCmd.Flags().StringVar(&reviewRepo, "repo", "", "repo (defaults to the pr-N worktree's project, or the single registered project)")
+	reviewCmd.Flags().BoolVar(&reviewPending, "pending", false, "leave the review pending on GitHub (visible only to you) instead of submitting it; publish later with --submit")
+	reviewCmd.Flags().IntVar(&reviewSubmit, "submit", 0, "publish a previously created pending review by its ID, with --verdict")
 
 	cmd := &cobra.Command{
 		Use:   "pr",

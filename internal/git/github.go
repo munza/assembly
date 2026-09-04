@@ -144,6 +144,44 @@ func PRReview(repo string, number int, verdict, body string) error {
 	return err
 }
 
+// PRReviewPending creates a PR review via the API without an event, which
+// GitHub leaves in the PENDING state: visible only to the author until
+// published with PRReviewSubmitPending. `gh pr review` has no equivalent --
+// it always submits.
+func PRReviewPending(repo string, number int, body string) (id int, url string, err error) {
+	args := []string{"api", fmt.Sprintf("repos/%s/pulls/%d/reviews", repo, number)}
+	if strings.TrimSpace(body) != "" {
+		args = append(args, "-f", "body="+body)
+	}
+	out, err := run("", args...)
+	if err != nil {
+		return 0, "", err
+	}
+	var r struct {
+		ID      int    `json:"id"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.Unmarshal(out, &r); err != nil {
+		return 0, "", err
+	}
+	return r.ID, r.HTMLURL, nil
+}
+
+// PRReviewSubmitPending publishes a review previously left pending by
+// PRReviewPending, assigning it the given verdict.
+func PRReviewSubmitPending(repo string, number, reviewID int, verdict string) error {
+	event := map[string]string{
+		"approve":          "APPROVE",
+		"comment":          "COMMENT",
+		"request-changes":  "REQUEST_CHANGES",
+	}[verdict]
+	if event == "" {
+		return fmt.Errorf("invalid verdict %q; valid: approve|comment|request-changes", verdict)
+	}
+	_, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/reviews/%d/events", repo, number, reviewID), "-X", "POST", "-f", "event="+event)
+	return err
+}
+
 func ReviewRequested(repo string) ([]map[string]any, error) {
 	out, err := run("", "pr", "list", "--repo", repo, "--search", "review-requested:@me", "--json", "number,title,author,url")
 	if err != nil {
