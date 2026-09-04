@@ -615,6 +615,7 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 		}
 	}
 	delete(s.Worktrees, wt.Slug)
+	delete(s.Pipelines, wt.Slug)
 	return nil
 }
 

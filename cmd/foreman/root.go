@@ -43,6 +43,7 @@ func newRootCmd() *cobra.Command {
 		newIssueCmd(),
 		newWorktreeCmd(),
 		newTaskCmd(),
+		newPipelineCmd(),
 		newPRCmd(),
 		newMailboxCmd(),
 		newStatusCmd(),

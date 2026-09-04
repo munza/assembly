@@ -35,6 +35,7 @@ func Empty() *State {
 		Projects:   map[string]*ProjectState{},
 		Worktrees:  map[string]*Worktree{},
 		Tasks:      map[string]*Task{},
+		Pipelines:  map[string]*Pipeline{},
 		WatchedPRs: map[string]*WatchedPR{},
 	}
 }
@@ -59,6 +60,9 @@ func Load() (*State, error) {
 	}
 	if s.Tasks == nil {
 		s.Tasks = map[string]*Task{}
+	}
+	if s.Pipelines == nil {
+		s.Pipelines = map[string]*Pipeline{}
 	}
 	if s.WatchedPRs == nil {
 		s.WatchedPRs = map[string]*WatchedPR{}

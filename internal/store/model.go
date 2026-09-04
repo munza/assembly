@@ -56,6 +56,20 @@ type Task struct {
 	AgentName string `json:"agent_name,omitempty"`
 }
 
+// Pipeline is the half-level cursor for a worktree's gated flow
+// (plan → build → pr, with respond re-entering pr, and review for other
+// people's PRs). Stage-level truth stays in Tasks; this record only says
+// where the flow stands and which output documents it has produced, so any
+// half can resume from state instead of re-deriving it.
+type Pipeline struct {
+	Worktree string    `json:"worktree"`
+	IssueID  string    `json:"issue_id,omitempty"`
+	Half     string    `json:"half"`
+	Reports  []string  `json:"reports,omitempty"`
+	Created  time.Time `json:"created"`
+	Updated  time.Time `json:"updated"`
+}
+
 // WatchedPR tracks comment/review activity on a PR you reviewed but don't
 // own -- no worktree survives pipeline review's CLEANUP to hang this off of,
 // so it gets its own minimal record. Removed once the PR is merged or
@@ -86,5 +100,6 @@ type State struct {
 	Projects   map[string]*ProjectState `json:"projects"`
 	Worktrees  map[string]*Worktree     `json:"worktrees"`
 	Tasks      map[string]*Task         `json:"tasks"`
+	Pipelines  map[string]*Pipeline     `json:"pipelines,omitempty"`
 	WatchedPRs map[string]*WatchedPR    `json:"watched_prs,omitempty"`
 }
