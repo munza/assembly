@@ -6,7 +6,7 @@ import (
 	"text/template"
 
 	"assembly/internal/config"
-	"assembly/internal/linear"
+	"assembly/internal/issue"
 
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ func newIssueCmd() *cobra.Command {
 		Short: "Fetch a Linear issue by ID (e.g. ENG-123)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			issue, err := linear.GetIssue(args[0], config.LinearAPIKey())
+			issue, err := issue.GetIssue(args[0], config.LinearAPIKey())
 			if err != nil {
 				return err
 			}

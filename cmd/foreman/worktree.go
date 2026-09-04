@@ -12,7 +12,7 @@ import (
 	"assembly/internal/config"
 	"assembly/internal/git"
 	"assembly/internal/mux"
-	"assembly/internal/linear"
+	"assembly/internal/issue"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -134,7 +134,7 @@ func newWorktreeCmd() *cobra.Command {
 			}
 			title := ""
 			if issueID != "" {
-				if issue, err := linear.GetIssue(issueID, config.LinearAPIKey()); err == nil {
+				if issue, err := issue.GetIssue(issueID, config.LinearAPIKey()); err == nil {
 					title = issue.Title
 				} else {
 					fmt.Fprintf(os.Stderr, "warning: could not fetch issue %s: %v\n", issueID, err)

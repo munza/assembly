@@ -7,7 +7,7 @@ import (
 
 	"assembly/internal/config"
 	"assembly/internal/git"
-	"assembly/internal/linear"
+	"assembly/internal/issue"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -44,7 +44,7 @@ func newPRCmd() *cobra.Command {
 			title := createTitle
 			body := ""
 			if title == "" && wt.IssueID != "" {
-				if issue, err := linear.GetIssue(wt.IssueID, config.LinearAPIKey()); err == nil {
+				if issue, err := issue.GetIssue(wt.IssueID, config.LinearAPIKey()); err == nil {
 					title = issue.Title
 					body = fmt.Sprintf("[%s](%s)\n\n%s", issue.Identifier, issue.URL, issue.Description)
 				} else {
