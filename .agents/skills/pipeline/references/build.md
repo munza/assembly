@@ -1,9 +1,9 @@
-# Pipeline build half — PLAN → BUILD → TEST → REVIEW
+# Pipeline build half — BUILD → TEST → REVIEW
 
 ```
-PLAN → BUILD → TEST → REVIEW → clean (hands off to references/pr.md)
-                 ↑       |
-                 └── FIX ←┘    findings → fix → test → review again
+BUILD → TEST → REVIEW → clean (hands off to references/pr.md)
+         ↑       |
+         └── FIX ←┘    findings → fix → test → review again
 ```
 
 `<N>` is the round number, starting at 1 for the first pass through
@@ -15,11 +15,12 @@ pipeline stands.
 
 ## Stage definitions
 
-- **PLAN** (prerequisite). Reuse a `done` plan task in the worktree if one
-  exists. If there is none, create a lightweight plan anyway:
-  `plan "small plan: <issue title or the user's note>" --worktree <slug> --slug plan-<slug>`
-  and wait for its report path like any other plan.
-- **BUILD** — `build "Implement <plan report path>; stay in scope" --worktree <slug> --slug build-<slug>`.
+- **PLAN** (prerequisite, owned by the plan half) — a `done` plan task in
+  the worktree whose report path feeds the BUILD and REVIEW notes. If there
+  is none: run `pipeline plan <issue-id>` first — only if the user says so,
+  proceed unplanned (their call, never yours).
+- **BUILD** — `build "Implement <plan report path>; stay in scope" --worktree <slug> --slug build-<slug>`
+  (unplanned: cite the issue title instead of a plan path).
 - **TEST** — `test "Run the full test suite against the build" --worktree <slug> --slug test`.
   Test workers never modify code; their done message starts with
   `VERDICT: pass` or `VERDICT: fail`.
@@ -35,6 +36,9 @@ pipeline stands.
   TEST of the next round.
 - REVIEW with findings → dispatch FIX with the findings, then TEST, then
   REVIEW of the next round.
-- REVIEW `FINDINGS: none` → build half done. In `pipeline build` mode:
-  summarize for the user and offer `pr create <slug>` (or the pr half). In
-  full/`pipeline pr` mode: continue with [pr](pr.md) immediately.
+- REVIEW `FINDINGS: none` → build half done. Record any report paths that
+  arrived (`foreman pipeline report`), then in `pipeline build` mode:
+  summarize for the user and offer the pr half (`foreman pipeline update
+  <slug> --half pr`, or `pr create <slug>` alone if they just want the PR).
+  In full/`pipeline pr` mode: move the cursor (`--half pr`) and continue
+  with [pr](pr.md) immediately.

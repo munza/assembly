@@ -18,6 +18,8 @@ where the user is the requested reviewer (mailbox delivery surfaces
      matched against registered projects (`project list`).
    - `pr checkout <N> --project <project>` — it fetches the PR head and
      creates the `pr-<N>` worktree (branch `pr-<N>`, never branch-prefixed).
+     Then register its pipeline: `foreman pipeline add pr-<N> --half review`
+     (idempotent — safe on a re-review).
 2. **REVIEW** — `review "Review PR #N <title>: correctness, tests, docs,
    scope; check the diff against the PR description" --worktree pr-<N>
    --slug review-pr-<N>`, then `task execute`. The worker's done message ends

@@ -99,6 +99,15 @@ foreman
     update <task-id>         # --status pending|in-progress|self-review|done|blocked|failed --note
     teardown <task-id>
     remove <task-id>
+  pipeline
+    list                     # all pipelines: worktree, half, reports, updated
+    add <worktree>           # register a worktree's pipeline (idempotent);
+                             #  --half plan|build|pr|respond|review|done
+                             #  (default plan, e.g. review for pr-<N>)
+    get <worktree>           # half cursor + recorded reports (missing files
+                             #  marked) + the worktree's tasks — the resume view
+    update <worktree>        # --half <h> move a pipeline to another half
+    report <worktree> <path> # record an output document the pipeline produced
   pr
     create <worktree>        # push branch, then open PR --title --base --no-template
                              #  (idempotent: reuses an existing PR for the branch;
@@ -243,13 +252,17 @@ Build/fix/respond workers commit their changes before reporting done. A plan tas
 worktree still has running research gets a "wait for the report paths" line in
 its prompt — end the turn, do not poll; the paths arrive as a pushed message.
 The central agent sends them once all research is done.
-The foreman skill (`.agents/skills/foreman/`, including its `start` command) is
-the single skill — keep it in sync with behavior changes. The pipeline skill
-(`.agents/skills/pipeline/`, references `build.md` + `pr.md` + `review.md`)
-drives the gated make-no-mistake flow: `pipeline build` (plan → build → test →
-review with a fix loop), `pipeline pr` (docs → lint → PR → CI → merge),
-`pipeline review` (someone else's PR, as reviewer), or plain `pipeline` for
-the full run. Keep them all in sync.
+The foreman skill (`.agents/skills/foreman/`) is the generic orchestration
+base — keep it in sync with behavior changes. The pipeline skill
+(`.agents/skills/pipeline/`, references `plan.md` + `build.md` + `pr.md` +
+`respond.md` + `review.md`) drives the gated make-no-mistake flow, one half
+per phase with handovers recorded by `foreman pipeline update`:
+`pipeline plan` (kickoff: issue → worktree → research → plan),
+`pipeline build` (build → test → review with a fix loop),
+`pipeline pr` (docs → lint → PR → CI → watch → merge),
+`pipeline respond` (address PR comments), `pipeline review` (someone else's
+PR, as reviewer), or plain `pipeline` for the full chained run.
+Keep them all in sync.
 
 ## Core flow
 
@@ -374,9 +387,12 @@ configuration, not runtime state:
 Both files are created lazily on first write — an empty `.assembly/` with only
 `bin/` is normal until you register a project or create a worktree.
 
-- `.assembly/state.json` holds worktrees, tasks, per-project herdr workspace
-  IDs, and `watched_prs` (PRs you reviewed but don't own — see below).
-  Writes are atomic (tmp + rename). It never exists until the first write.
+- `.assembly/state.json` holds worktrees, tasks, pipelines, per-project
+  herdr workspace IDs, and `watched_prs` (PRs you reviewed but don't own —
+  see below). Writes are atomic (tmp + rename). It never exists until the
+  first write. A pipeline record (one per worktree) is the half-level
+  cursor (`plan|build|pr|respond|review|done`) plus the index of output
+  documents its tasks produced; stage-level truth stays in the tasks.
 - `watched_prs` (keyed `<project>#<pr>`): `pr review` registers one
   automatically whenever you leave a review (pending or submitted) on a PR
   no worktree already owns — a `worktree remove pr-<N>` cleanup would
@@ -403,7 +419,7 @@ Both files are created lazily on first write — an empty `.assembly/` with only
 - Language: **Go**. Binary: `foreman` (package `cmd/foreman`).
 - Layout:
   - `cmd/foreman/` — entrypoint + cobra command tree (one file per group:
-    project, issue, worktree, task, pr, mailbox, status, setup).
+    project, issue, worktree, task, pipeline, pr, mailbox, status, setup).
   - `cmd/watchman/` — daemon entrypoint: start/stop/status, foreground by
     default, `--detached` for the background lifecycle.
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).

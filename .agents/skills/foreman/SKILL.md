@@ -24,59 +24,13 @@ work to worker pi agents and every report comes back to you.
    they already gave you the issue/slug or said to go ahead.
 5. When anything changes (worker reports, PR events), tell the user in one
    short summary. You are their single status view.
-
-## start <issue-id> — kickoff flow
-
-The full issue kickoff. Every worker tab it spawns is a real foreman task with
-its own state (`task list --worktree <slug>`).
-
-1. **Fetch and prepare**
-   - `issue get <ISSUE-ID>` — show the user a summary.
-   - Reuse the issue's worktree if it exists (`worktree list`), else derive a
-     2-3 word slug from the title and run
-     `worktree add <ISSUE-ID> <word1> <word2> [<word3>]`
-     (slug `plat-763-rate-limiter-tests`; project resolved by `issue_prefix`).
-2. **Ask the user what to run** — use the `ask_user_question` tool
-   (rpiv-ask-user-question plugin), recommended option first:
-   1. Plan — "Run a planning task first?" → "Yes — plan first (Recommended)" /
-      "No — skip planning"
-   2. Research — "Which research should run in parallel?" (`multiSelect: true`)
-      → "Explore codebase (Recommended)" / "Similar implementations" /
-      "Read tests around the area" / "None"
-   3. Build — "Start the build task when plan is done?" → "Yes — auto-start
-      after plan (Recommended)" / "No — ask me when plan finishes" / "No build"
-3. **Spawn** — tab labels are `<verb>-<short-slug>` via `--slug`:
-   - plan and research: create + `task execute` immediately (parallel). If
-     research is still running when plan starts, plan's prompt tells it to
-     wait for the research report paths — you send them (step 4).
-   - build: `task execute` refuses while a plan task is pending/in-progress/
-     self-review/blocked (the dependency guard). Auto-start it the moment
-     plan reports `done` if the user chose that.
-   - plan/build workers spawn their own research subtasks when needed — they
-     appear in `task list` on their own; when those finish, relay their report
-     paths to the plan tab too.
-4. **React to reports** (in addition to the general rules below):
-   - research done → the message contains the report path
-     (`.assembly/output/<issue-id|worktree-slug>-<label>.md`, central state dir); the tab closed itself.
-     ALWAYS share a summary with the user. If a plan task is waiting on
-     research, once ALL research for the worktree is done send the paths to
-     the plan tab: `mailbox send <plan-task-id> "Research done, reports:
-     .assembly/output/dem-1-research-....md, .assembly/output/dem-1-research-....md — plan now."` (delivered into the
-     plan agent's pane). Only skip this if the user explicitly says to plan
-     without waiting for research.
-   - plan done → the message contains the plan path; tab closed itself.
-     ALWAYS share a summary, then prompt the user for the next step (usually
-     build; execute it or ask, per their earlier choice).
-   - build done → summarize, offer `pr create` (it sets `pr-open` itself).
-   - blocked (question) → the message body has `QUESTION:` and `OPTION:`
-     lines. Do NOT auto-ask. Tell the user which task has a question and ask
-     if they want to see it; only if yes, relay it via `ask_user_question`
-     (options from the OPTION: lines) and send the answer back:
-     `mailbox send <task-id> "<answer>"`. The user never leaves this tab.
+6. Kick off a new issue with `pipeline plan <issue-id>` (pipeline skill);
+   for anything else, the raw commands below.
 
 ## Standard flow: issue → worktree → tasks → agents → PR
 
-The raw loop that `start` drives:
+The raw loop that `pipeline plan` drives (see the pipeline skill for the
+ gated flow built on it):
 
 ```bash
 go run ./cmd/foreman issue get ENG-123            # fetch details, show user a summary
@@ -114,10 +68,18 @@ wait-and-recheck; the next event (or its absence) is the verification.
 Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by status:
 
 - **in-progress / self-review**: nothing to do; mention to user if asked.
-- **done (research/plan)**: message contains the report path
-  (`.assembly/output/<issue-id|worktree-slug>-<label>.md`); the tab closed itself. ALWAYS share a
-  summary with the user. Plan/research never require cleanup from you.
-- **done (plan)** → prompt the user for the next step (build, usually).
+- **done (research)**: message contains the report path
+  (`.assembly/output/<issue-id|worktree-slug>-<label>.md`, central state dir);
+  the tab closed itself. ALWAYS share a summary with the user. If a plan
+  task is waiting on research (its prompt told it to wait), once ALL
+  research for the worktree is done — including worker-spawned subtasks —
+  relay the paths to the plan tab:
+  `mailbox send <plan-task-id> "Research done, reports: <paths> — plan now."`
+  (delivered into the plan agent's pane). Only skip this if the user
+  explicitly said to plan without waiting for research.
+- **done (plan)**: message contains the plan path; tab closed itself. Share a
+  summary, then prompt the user for the next step (build, usually — in a
+  pipeline run the plan half hands over per the user's kickoff choice).
 - **done (build)** → `pr create <worktree>` (it pushes, opens or reuses the
   PR, and moves planning/building/blocked/failed to pr-open by itself);
   review done → tell user.
@@ -141,8 +103,9 @@ go run ./cmd/foreman worktree update eng-123 --status addressing-comments
 
 `watchman` (see below) pushes PR events into this tab: new comments/reviews,
 review requests, status changes (awaiting-review, addressing-comments,
-ready-for-merge, done). When it reports comments, show them to the user and
-offer to dispatch a `respond` task.
+ready-for-merge, done). When it reports comments on your PR, run
+`pipeline respond <worktree>` (pipeline skill) — it shows them and confirms
+with the user.
 
 ## Watchman daemon
 
@@ -178,9 +141,6 @@ rationale and exact commands):
 If you notice mailbox delivery isn't armed (e.g. a fresh session, or after
 restarting), set it up before relying on automatic reports — otherwise
 messages just sit unread until you next check.
-
-When it reports PR comments, show them to the user and offer to dispatch a
-`respond` task.
 
 ## Talking to a worker directly
 

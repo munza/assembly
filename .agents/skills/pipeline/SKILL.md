@@ -1,38 +1,46 @@
 ---
 name: pipeline
-description: Gated make-no-mistake pipeline for one worktree. Modes "pipeline build" (plan, build, test, review with a fix loop) and "pipeline pr" (docs, lint, PR, CI, review comments, merge), or plain "pipeline" for the full run. Use when the user says pipeline, pipeline build, pipeline pr, build with gates, make no mistake, or wants an issue shipped end-to-end with quality gates.
+description: Gated make-no-mistake pipeline for one worktree. Modes "pipeline plan" (kickoff: issue, worktree, research, plan), "pipeline build" (build, test, review with a fix loop), "pipeline pr" (docs, lint, PR, CI, watch, merge), "pipeline respond" (address PR comments), "pipeline review" (someone else's PR, as reviewer), or plain "pipeline" for the full chained run. Use when the user says pipeline, pipeline plan/build/pr/respond/review, build with gates, make no mistake, or wants an issue shipped end-to-end with quality gates.
 ---
 
-# Pipeline — gated stages with fix loops
+# Pipeline — gated halves chained by handover
 
 You are the central foreman instance driving the pipeline for one worktree.
-Stages gate strictly: tests gate review, a clean review gates the PR, CI gates
-merge. Gates advance automatically; only loop overruns and worker questions
-reach the user.
+Stages gate strictly: research gates the plan, the plan gates the build,
+tests gate review, a clean review gates the PR, CI gates merge. Gates advance
+automatically; only loop overruns and worker questions reach the user.
 
-## Modes
+## Modes — plan → build → pr, plus respond and review
 
-- `pipeline build <worktree|issue>` — the build half only:
-  PLAN → BUILD → TEST → REVIEW (fix loop). Read `references/build.md` first.
-- `pipeline pr <worktree>` — the ship half: resumes/verifies the build state,
-  then DOC → LINT → PR → CI CHECK → WATCH → merged. Read `references/pr.md`
-  first; `references/build.md` covers anything still missing in the worktree.
+- `pipeline plan <issue-id|worktree>` — the kickoff: fetch the issue, ensure
+  the worktree, run research in parallel if wanted, produce the plan.
+  Hands over to the build half. Read `references/plan.md` first.
+- `pipeline build <worktree|issue>` — BUILD → TEST → REVIEW (fix loop),
+  consuming the plan half's output. Hands over to the pr half. Read
+  `references/build.md` first.
+- `pipeline pr <worktree>` — DOC → LINT → PR → CI CHECK → WATCH → merged.
+  Comment events during WATCH hand over to the respond half. Read
+  `references/pr.md` first.
+- `pipeline respond <worktree|pr>` — address comments on your PR: show them
+  verbatim, confirm with the user, run the respond task, push, re-check CI,
+  return to WATCH. Read `references/respond.md` first.
 - `pipeline review <pr>` — review someone else's PR as the reviewer: checkout,
   review task, confirm findings with the user, post the review or not.
   Read `references/review.md` first. Triggered by `review requested:` watch
   events or the user directly.
-- `pipeline <worktree|issue>` — the full run: build half first, then
-  immediately the pr half without stopping between them.
+- `pipeline <worktree|issue>` — the full run: plan → build → pr, chained
+  without stopping between halves.
 
-Both halves share one worktree and never run two stages of one pipeline in
+All halves share one worktree and never run two stages of one pipeline in
 parallel. Run everything through the foreman CLI (`go run ./cmd/foreman ...`);
 reports and events arrive here via mailbox delivery (see the foreman skill).
 
 ## Progress view
 
-Every pipeline update starts with the progress line, then one short sentence.
+Every pipeline update starts with the progress line(s), then one short sentence.
 
-    build:  ● PLAN ── ● BUILD ── ◉ TEST r1 (t5) ── ○ REVIEW
+    plan:   ○ ISSUE ── ○ RESEARCH ── ○ PLAN
+    build:  ○ BUILD ── ○ TEST ── ○ REVIEW
     pr:     ○ DOC ── ○ LINT ── ○ PR#1 ── ○ CI ── ○ WATCH ── ○ MERGED
 
 - ● done
@@ -40,8 +48,10 @@ Every pipeline update starts with the progress line, then one short sentence.
 - ○ not started
 - ✗ failed or blocked — annotate (`✗ FIX r2 (blocked: awaiting answer)`)
 
-Print the line(s) for the half(s) in play; plain `pipeline` shows both. Round
-numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r2).
+Print the line(s) for the half(s) in play; plain `pipeline` shows all three.
+The respond half has no line of its own — it re-enters the pr line; note the
+round in the summary sentence (RESPOND r2). Round numbers only grow with
+loops (TEST r1 → FIX r1 → TEST r2).
 
 ## Shared rules
 
@@ -58,13 +68,15 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    Blocked rounds do not count toward the cap.
 4. **Failed workers**: tell the user, offer re-run (`task rerun <id>`)
    or abort. Never silently retry.
-5. **Resume from state**: `task list --worktree <slug>` — a done stage counts
-   as done; loop rounds are the auto-appended `-rN` slug suffixes (`test`,
-   `test-r2`, ...), so stage recipes always pass a bare stem and `task add`
-   rounds it. Never re-run a stage that reported done unless a later FIX
+5. **Resume from state**: `foreman pipeline get <slug>` — the half cursor
+   plus every recorded report; its task list shows stage detail (a done task
+   is a done stage — never re-run it; loop rounds are the auto-appended
+   `-rN` slug suffixes, `test`, `test-r2`, ..., so stage recipes always pass
+   a bare stem). Never re-run a stage that reported done unless a later FIX
    invalidated it.
 6. Reports live in `.assembly/output/<issue-id|worktree-slug>-<label>.md`; worker done
-   messages must mention the path. Test-gate workers report
+   messages must mention the path. Record each one as it arrives:
+   `foreman pipeline report <slug> <path>`. Test-gate workers report
    `VERDICT: pass|fail`; review workers `FINDINGS: none` or numbered findings.
 7. Never skip a gate, never merge or force-push yourself, never open or update
    a PR while any pipeline task in the worktree is unfinished.
@@ -73,8 +85,9 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    `worktree hold <slug> --note "<the pending decision: question, options,
    comment quotes>"` and say the pipeline is on hold. When the user asks to
    resume, run `worktree resume <slug>` (prints and clears the hold),
-   re-derive the stage from `task list --worktree <slug>`, and re-ask or
-   re-dispatch exactly what the note says. `status` shows holds, `task list`
+   re-derive where the pipeline stands (`foreman pipeline get <slug>`), and
+   re-ask or re-dispatch exactly what the note says. `status` shows holds,
+   `task list`
    marks tasks of held worktrees, and `foreman resume` (top level, no arg)
    resumes the only hold — or `foreman resume --task <id>` /
    `foreman resume --worktree <slug>`.
@@ -82,9 +95,20 @@ numbers reset never — they only grow with loops (TEST r1 → FIX r1 → TEST r
    any push-based step, end the turn — reports and events arrive here on
    their own. Use `watchman status` (instant) for health, never `sleep` or
    wait-and-recheck.
+10. **Handovers move the cursor, never re-runs**: the pipeline record
+    (`foreman pipeline`) is the half-level state. Register once at kickoff
+    (`foreman pipeline add <slug>`, plan half; `--half review` for a
+    `pr-<N>` checkout). At every handover, move it —
+    `foreman pipeline update <slug> --half <build|pr|respond|done>` — then
+    start the next half (`pipeline plan` → `pipeline build` → `pipeline
+    pr`); the pr half's WATCH hands comment events to `pipeline respond`,
+    which moves the cursor back to pr once CI is green again. A half never
+    re-enters a previous half; resuming mid-chain is rule 5's job.
 
 ## Reference
 
+- Plan half — issue → worktree → research → plan: [plan](references/plan.md)
 - Build half — stage machine and task recipes: [build](references/build.md)
-- Ship half — docs, lint, PR, CI, watch, merge: [pr](references/pr.md)
+- Pr half — docs, lint, PR, CI, watch, merge: [pr](references/pr.md)
+- Respond half — address PR comments: [respond](references/respond.md)
 - Review-only — someone else's PR, as the reviewer: [review](references/review.md)
