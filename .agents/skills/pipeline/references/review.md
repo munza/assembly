@@ -25,8 +25,11 @@ where the user is the requested reviewer (mailbox delivery surfaces
    with `FINDINGS: none` or numbered findings, each tagged with its location
    (`<path>:<line> — ...`, `<path> — ...`, or plain text if untied to a
    file) — always share them verbatim.
-3. **CONFIRM** — one `ask_user_question` call, two questions, quoting the
-   findings verbatim:
+3. **CONFIRM** — one `ask_user_question` call, two questions. Show the exact
+   posting shape, not just the raw findings: the general `--body` text as
+   its own block, and every inline comment as its own `path:line — body`
+   line — the user sees precisely what will land where before anything goes
+   to GitHub.
    1. Post the review as-is — verdict auto-picked: `FINDINGS: none` →
       approve; numbered findings → `request-changes` (or `comment` if the
       user prefers). / Don't post. / Or the user types their own review
@@ -55,11 +58,28 @@ where the user is the requested reviewer (mailbox delivery surfaces
    user; if the review was left pending, say so plainly (this pass isn't
    fully done from GitHub's perspective until they publish it).
 
+## Publishing a pending review later
+
+If the user asks to publish a review left pending earlier (possibly a
+different session, no `pr-<N>` worktree around anymore) — re-fetch it rather
+than trusting memory, since it may have sat a while or been hand-edited on
+GitHub: `gh api repos/<repo>/pulls/<N>/reviews/<review-id>` for the body,
+`gh api repos/<repo>/pulls/<N>/reviews/<review-id>/comments` for the inline
+comments. Run CONFIRM (verdict question only — it's already pending, nothing
+left to choose there) showing that fetched body and every inline comment
+verbatim, then `pr review <N> --verdict <verdict> --submit <review-id>`.
+
 ## Rules
 
-- Never post anything without the CONFIRM step — the user sees the exact
-  text and the verdict before it goes to GitHub.
+- Never post anything without the CONFIRM step, **and CONFIRM always shows
+  both the general body and every inline comment separately** — this
+  applies whether creating a review (pending or immediate) or publishing an
+  already-pending one. The user sees exactly what lands where, verdict
+  included, before anything goes to GitHub.
 - Never approve silently; `FINDINGS: none` still goes through CONFIRM.
+- GitHub refuses `request-changes` (and sometimes `approve`) on your own
+  PR — if the reviewer is also the PR's author, fall back to `comment` and
+  say why, rather than treating the rejection as a bug.
 - If the review worker is blocked (question), relay as usual; the pipeline
   waits.
 - Re-review after the author pushes fixes: run the pipeline again — fetch
