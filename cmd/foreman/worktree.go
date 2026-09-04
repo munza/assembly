@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"assembly/internal/config"
+	"assembly/internal/git"
 	"assembly/internal/herdr"
 	"assembly/internal/linear"
 	"assembly/internal/store"
@@ -543,10 +544,16 @@ func removeWorktree(s *store.State, wt *store.Worktree, force bool) error {
 	}
 	if wt.WorkspaceID != "" {
 		if err := herdr.WorktreeRemove(wt.WorkspaceID, true); err != nil {
-			if !force {
-				return err
+			if !strings.Contains(err.Error(), "workspace_not_found") {
+				if !force {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+			} else if wt.Path != "" {
+				if cerr := git.RemoveWorktreeCheckout(wt.Path); cerr != nil {
+					fmt.Fprintf(os.Stderr, "warning: %v\n", cerr)
+				}
 			}
-			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 		}
 	}
 	delete(s.Worktrees, wt.Slug)

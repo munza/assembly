@@ -69,6 +69,25 @@ func PRTemplate(dir string) (string, string) {
 	return "", ""
 }
 
+func RemoveWorktreeCheckout(path string) error {
+	out, err := exec.Command("git", "-C", path, "rev-parse", "--git-common-dir").Output()
+	if err != nil {
+		return fmt.Errorf("resolve repo root of %s: %w", path, err)
+	}
+	root := strings.TrimSpace(string(out))
+	cmd := exec.Command("git", "-C", root, "worktree", "remove", "--force", path)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("git worktree remove %s: %s", path, msg)
+	}
+	return nil
+}
+
 func Push(dir, branch string) error {
 	cmd := exec.Command("git", "-C", dir, "push", "-u", "origin", branch)
 	var stderr bytes.Buffer
