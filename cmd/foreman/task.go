@@ -142,7 +142,7 @@ func newTaskCmd() *cobra.Command {
 				return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
 			}
 			if t.TabID != "" {
-				return fmt.Errorf("task %s already has an agent (tab %s); teardown first", t.ID, tabLabel(t))
+				return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, tabLabel(t), t.ID)
 			}
 			if t.Type == "build" || t.Type == "test" || t.Type == "fix" {
 				for _, pt := range store.WorktreeTasks(s, wt.Slug) {
@@ -158,7 +158,7 @@ func newTaskCmd() *cobra.Command {
 			name := agentName(label)
 			bin := foremanBin()
 			if bin == "foreman" {
-				fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; build it with: go build -o %s ./cmd/foreman\n", filepath.Join(store.Dir(), "bin", "foreman"))
+				fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; run `foreman setup`\n")
 			}
 			cfg, err := config.Load()
 			if err != nil {

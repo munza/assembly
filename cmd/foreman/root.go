@@ -38,6 +38,7 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "reads run normally; writes print what they would do")
 	root.CompletionOptions.HiddenDefaultCmd = true
 	root.AddCommand(
+		newSetupCmd(),
 		newProjectCmd(),
 		newIssueCmd(),
 		newWorktreeCmd(),
