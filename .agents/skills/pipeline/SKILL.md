@@ -37,21 +37,12 @@ reports and events arrive here via mailbox delivery (see the foreman skill).
 
 ## Progress view
 
-Every pipeline update starts with the progress line(s), then one short sentence.
-
-    plan:   ○ ISSUE ── ○ RESEARCH ── ○ PLAN
-    build:  ○ BUILD ── ○ TEST ── ○ REVIEW
-    pr:     ○ DOC ── ○ LINT ── ○ PR#1 ── ○ CI ── ○ WATCH ── ○ MERGED
-
-- ● done
-- ◉ running — the current stage; include the task id and round suffix (TEST r2)
-- ○ not started
-- ✗ failed or blocked — annotate (`✗ FIX r2 (blocked: awaiting answer)`)
-
-Print the line(s) for the half(s) in play; plain `pipeline` shows all three.
-The respond half has no line of its own — it re-enters the pr line; note the
-round in the summary sentence (RESPOND r2). Round numbers only grow with
-loops (TEST r1 → FIX r1 → TEST r2).
+Every pipeline update starts with the progress line(s), then one short
+sentence. Never hand-draw them — run `foreman pipeline status <slug>` and
+show its output verbatim (● done, ◉ running with task id and round suffix,
+✗ blocked/failed, ○ not started, per half; respond and review annotate
+their line). Round numbers come from the auto-appended `-rN` slug suffixes
+and only grow with loops (TEST r1 → FIX r1 → TEST r2).
 
 ## Shared rules
 
@@ -74,10 +65,12 @@ loops (TEST r1 → FIX r1 → TEST r2).
    `-rN` slug suffixes, `test`, `test-r2`, ..., so stage recipes always pass
    a bare stem). Never re-run a stage that reported done unless a later FIX
    invalidated it.
-6. Reports live in `.assembly/output/<issue-id|worktree-slug>-<label>.md`; worker done
-   messages must mention the path. Record each one as it arrives:
-   `foreman pipeline report <slug> <path>`. Test-gate workers report
-   `VERDICT: pass|fail`; review workers `FINDINGS: none` or numbered findings.
+6. Reports live in `.assembly/output/<issue-id|worktree-slug>-<label>.md`.
+   The mailbox enforces the done contract — a plan/research/test done must
+   mention its `output/` path, a test done must open with
+   `VERDICT: pass|fail`, a review done must close with a `FINDINGS:` block —
+   and indexes every reported path into the pipeline record automatically.
+   `foreman pipeline report` remains for manual additions only.
 7. Never skip a gate, never merge or force-push yourself, never open or update
    a PR while any pipeline task in the worktree is unfinished.
 8. **Pause and resume**: if the user declines, breaks, or ignores any

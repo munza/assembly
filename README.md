@@ -74,8 +74,9 @@ plain `pipeline <worktree|issue>` chains plan → build → pr without
 stopping, and `pipeline review <pr>` reviews someone else's PR the same
 gated way. Every handover moves the `foreman pipeline` record — the half
 cursor plus an index of every output document the tasks produced — so any
-half resumes from state (`foreman pipeline get <worktree>`). See
-`.agents/skills/pipeline/SKILL.md` and its `references/`.
+half resumes from state (`foreman pipeline get <worktree>`), and
+`foreman pipeline status <worktree>` renders the progress lines from that
+state. See `.agents/skills/pipeline/SKILL.md` and its `references/`.
 
 ## Requirements
 

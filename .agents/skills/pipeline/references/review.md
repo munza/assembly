@@ -22,7 +22,7 @@ where the user is the requested reviewer (mailbox delivery surfaces
      (idempotent — safe on a re-review).
 2. **REVIEW** — `review "Review PR #N <title>: correctness, tests, docs,
    scope; check the diff against the PR description" --worktree pr-<N>
-   --slug review-pr-<N>`, then `task execute`. The worker's done message ends
+   --slug review-pr-<N> --stage review`, then `task execute`. The worker's done message ends
    with `FINDINGS: none` or numbered findings, each tagged with its location
    (`<path>:<line> — ...`, `<path> — ...`, or plain text if untied to a
    file) — always share them verbatim.

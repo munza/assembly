@@ -70,13 +70,9 @@ Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by stat
 - **in-progress / self-review**: nothing to do; mention to user if asked.
 - **done (research)**: message contains the report path
   (`.assembly/output/<issue-id|worktree-slug>-<label>.md`, central state dir);
-  the tab closed itself. ALWAYS share a summary with the user. If a plan
-  task is waiting on research (its prompt told it to wait), once ALL
-  research for the worktree is done — including worker-spawned subtasks —
-  relay the paths to the plan tab:
-  `mailbox send <plan-task-id> "Research done, reports: <paths> — plan now."`
-  (delivered into the plan agent's pane). Only skip this if the user
-  explicitly said to plan without waiting for research.
+  the tab closed itself. ALWAYS share a summary with the user. When the last
+  research for the worktree finishes, the CLI relays the collected report
+  paths into a waiting plan tab automatically — you only summarize.
 - **done (plan)**: message contains the plan path; tab closed itself. Share a
   summary, then prompt the user for the next step (build, usually — in a
   pipeline run the plan half hands over per the user's kickoff choice).

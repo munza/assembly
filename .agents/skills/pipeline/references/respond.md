@@ -25,7 +25,7 @@ shared rules.
       fix is pushed (Recommended)` / `No reply` — the user may type their own
       message instead (posted as the reply).
 3. **RESPOND** — if dispatched: `foreman respond "Address review comments:
-   <threads/summary>" --thread --worktree <slug> --slug respond-pr-<PR#>`,
+   <threads/summary>" --thread --worktree <slug> --slug respond-pr-<PR#> --stage respond`,
    then `task execute`. The slug auto-rounds per loop (`respond-pr-3`,
    `respond-pr-3-r2`, ...).
 4. **PUSH** — `foreman pr create <worktree>` after the respond task reports

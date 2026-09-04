@@ -19,14 +19,15 @@ pipeline stands.
   the worktree whose report path feeds the BUILD and REVIEW notes. If there
   is none: run `pipeline plan <issue-id>` first — only if the user says so,
   proceed unplanned (their call, never yours).
-- **BUILD** — `build "Implement <plan report path>; stay in scope" --worktree <slug> --slug build-<slug>`
+- **BUILD** — `build "Implement <plan report path>; stay in scope" --worktree <slug> --slug build-<slug> --stage build`
   (unplanned: cite the issue title instead of a plan path).
-- **TEST** — `test "Run the full test suite against the build" --worktree <slug> --slug test`.
-  Test workers never modify code; their done message starts with
-  `VERDICT: pass` or `VERDICT: fail`.
-- **REVIEW** — `review "Review the full diff against <plan report path> and the issue requirements" --worktree <slug> --slug review`.
-  Their done message ends with `FINDINGS: none` or numbered `FINDINGS:`.
-- **FIX** — `fix "Fix round <N>: <the findings or test failures, one per line>" --worktree <slug> --slug fix`.
+- **TEST** — `test "Run the full test suite against the build" --worktree <slug> --slug test --stage test`.
+  Test workers never modify code; the mailbox rejects a test done that does
+  not open with `VERDICT: pass` or `VERDICT: fail`.
+- **REVIEW** — `review "Review the full diff against <plan report path> and the issue requirements" --worktree <slug> --slug review --stage review`.
+  The mailbox rejects a review done without a `FINDINGS: none` line or a
+  numbered `FINDINGS:` block.
+- **FIX** — `fix "Fix round <N>: <the findings or test failures, one per line>" --worktree <slug> --slug fix --stage fix`.
   Fix workers get the findings verbatim in the note; `<N>` is the round
   being fixed (the suffix of the failing stage's slug).
 
@@ -36,8 +37,8 @@ pipeline stands.
   TEST of the next round.
 - REVIEW with findings → dispatch FIX with the findings, then TEST, then
   REVIEW of the next round.
-- REVIEW `FINDINGS: none` → build half done. Record any report paths that
-  arrived (`foreman pipeline report`), then in `pipeline build` mode:
+- REVIEW `FINDINGS: none` → build half done (report paths were indexed
+  automatically as they arrived). In `pipeline build` mode:
   summarize for the user and offer the pr half (`foreman pipeline update
   <slug> --half pr`, or `pr create <slug>` alone if they just want the PR).
   In full/`pipeline pr` mode: move the cursor (`--half pr`) and continue

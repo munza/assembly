@@ -80,6 +80,7 @@ foreman
     add <issue-id|slug> [words...]  # --project (default: by issue_prefix or cwd), --base
                                     # slug = args joined: plat-763-rate-limiter-tests
                                     # branch = settings branch_prefix + slug (default: same as slug)
+                                    # idempotent: an existing slug is reused, not an error
     get <worktree>
     update <worktree>        # --status planning|building|pr-open|awaiting-review|addressing-comments|ready-for-merge|done|blocked|failed
     hold <worktree>          # --note <text> record a paused pipeline decision/step
@@ -90,9 +91,10 @@ foreman
   task
     list                     # --status --type --worktree (filters)
     add                      # --type plan|research|build|test|fix|review|respond
-                             # --note --slug --worktree
+                             # --note --slug --stage --worktree
                              # --general | --thread (note kind)
                              # a repeated --slug auto-rounds: test -> test-r2, -r3
+                             # --stage tags the pipeline stage (doc/lint disambiguate)
     get <task-id>
     execute <task-id>        # spawn pi agent in a herdr tab and run the task
     rerun <task-id>          # teardown if running, reset to pending, execute
@@ -104,8 +106,9 @@ foreman
     add <worktree>           # register a worktree's pipeline (idempotent);
                              #  --half plan|build|pr|respond|review|done
                              #  (default plan, e.g. review for pr-<N>)
-    get <worktree>           # half cursor + recorded reports (missing files
-                             #  marked) + the worktree's tasks — the resume view
+    get <worktree>           # half cursor + hold + recorded reports (missing
+                             #  files marked) + the worktree's tasks — the resume view
+    status <worktree>        # render the progress lines (plan/build/pr + annotations)
     update <worktree>        # --half <h> move a pipeline to another half
     report <worktree> <path> # record an output document the pipeline produced
   pr
@@ -135,7 +138,10 @@ foreman
   mailbox
     inbox                    # --unread to show only unread
     wait                     # block until an unread message arrives, print it,
-                             #  and exit (one-shot delivery primitive)
+                             #  and exit (one-shot delivery primitive);
+                             #  --status a,b,... wakes only on those statuses
+                             #  (task statuses and/or watch) — everything is
+                             #  still printed and marked read
     send <task-id> <message> # --status done|blocked|failed|in-progress|self-review
   status                     # one-screen overview: worktrees + status, running
                              # tasks, unread mail — the central instance's home view
@@ -193,6 +199,13 @@ IDs — tabs close when tasks finish, so only durable identifiers (task ID,
 worktree, issue, task label) are recorded:
 - **Worker side** (runs inside the task's tab): `foreman mailbox send <id> <msg>
   --status ...` appends an unread message for the foreman and updates task status.
+- The mailbox enforces the done contract and owns the report mechanics: a
+  plan/research/test `done` must mention its `output/` path (the path is
+  indexed into the worktree's pipeline record automatically), a test `done`
+  must open with `VERDICT: pass|fail`, a review `done` must close with a
+  `FINDINGS:` block — malformed reports bounce with instructions. When the
+  last research task of a worktree reports done, the collected report paths
+  are delivered into a waiting plan tab automatically.
 - **Foreman side** (anywhere else): the message is recorded and also delivered
   into the worker's tab via `herdr agent prompt`.
 - Workers report with the foreman binary, not `go run`: `task execute` injects
@@ -250,7 +263,8 @@ a plan task in the same worktree is pending/in-progress/self-review/blocked.
 Plan/research/test workers write their report to `<state-dir>/output/<issue-id|worktree-slug>-<label>.md`
 (`.assembly/output/` in the assembly repo) and must mention that path in their
 done message — `mailbox send` rejects a done from these types without an
-`output/` path. Worker tabs close automatically on `done` (all types;
+`output/` path, a test done without a leading `VERDICT:` line, or a review
+done without a `FINDINGS:` block. Worker tabs close automatically on `done` (all types;
 blocked keeps the tab open for the answer), and on `failed` for the
 report-writing plan/research/test types. Test workers
 report `VERDICT: pass|fail`, review workers `FINDINGS: none` or numbered

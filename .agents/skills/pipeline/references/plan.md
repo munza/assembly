@@ -12,12 +12,11 @@ research reports the plan was built from.
 
 1. **ISSUE** — `foreman issue get <ISSUE-ID>`; show the user a one-paragraph
    summary.
-2. **WORKTREE** — reuse the issue's worktree if one exists (`foreman worktree
-   list`); otherwise derive a 2-3 word slug from the issue title and run
+2. **WORKTREE** — derive a 2-3 word slug from the issue title and run
    `foreman worktree add <ISSUE-ID> <word1> <word2> [<word3>]` (slug
-   `plat-763-rate-limiter-tests`; project resolved by `issue_prefix`).
-   Then register the pipeline: `foreman pipeline add <slug>` (starts at the
-   plan half; idempotent — safe on resume).
+   `plat-763-rate-limiter-tests`; project resolved by `issue_prefix`; an
+   existing slug is reused, not an error). Then register the pipeline:
+   `foreman pipeline add <slug>` (starts at the plan half; idempotent).
 3. **ASK** — one `ask_user_question`, recommended option first:
    1. Planning — "Run a planning task first?" → "Yes — plan first
       (Recommended)" / "No — skip planning"
@@ -28,19 +27,20 @@ research reports the plan was built from.
       auto-start (Recommended)" / "No — ask me when planning finishes" /
       "No build"
 4. **SPAWN** — create and `task execute` immediately, in parallel; tab labels
-   via `--slug`:
-   - plan: `foreman plan "Plan <issue title>" --worktree <slug> --slug plan-<slug>`
+   via `--slug`, stage tags via `--stage`:
+   - plan: `foreman plan "Plan <issue title>" --worktree <slug> --slug plan-<slug> --stage plan`
    - research, one task per chosen option:
-     `foreman research "<what to investigate>" --worktree <slug> --slug research-<topic>`
+     `foreman research "<what to investigate>" --worktree <slug> --slug research-<topic> --stage research`
    - `task execute` refuses build/test/fix while a plan is pending — that
      dependency guard is the CLI's, not yours.
    - Plan and research workers may spawn their own research subtasks; they
      appear in `task list` on their own.
 5. **REPORTS** — handle per the foreman skill's "Reacting to worker reports"
-   (summaries, report paths); in particular relay all research report paths
-   to a waiting plan task once ALL research for the worktree is done,
-   including worker-spawned subtasks. Record every report path for resume:
-   `foreman pipeline report <slug> <path>`.
+   (share summaries). The CLI owns the mechanics: every done message's
+   `output/` path is indexed into the pipeline record automatically, and the
+   moment the last research task (including worker-spawned subtasks) reports
+   done, the collected paths are delivered into a waiting plan tab without
+   any action from you.
 6. **HANDOVER** — planning done (or skipped by the user): summarize, then
    `foreman pipeline update <slug> --half build` and start `pipeline build
    <slug>` per the user's ASK choice (auto-start / ask / no build). A

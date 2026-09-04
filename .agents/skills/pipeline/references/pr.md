@@ -12,19 +12,18 @@ WATCH ├─ comments/CHANGES_REQUESTED → respond half (references/respond.md)
 
 ## Stage definitions
 
-- **DOC** — `build "Update docs/README for this change: <one-line summary>; stay in scope" --worktree <slug> --slug doc-<slug>`.
+- **DOC** — `build "Update docs/README for this change: <one-line summary>; stay in scope" --worktree <slug> --slug doc-<slug> --stage doc`.
   Runs once; on review of the docs finding problems, re-run as another round.
-- **LINT** — `test "Run the project's linters/formatters (not the test suite)" --worktree <slug> --slug lint`.
+- **LINT** — `test "Run the project's linters/formatters (not the test suite)" --worktree <slug> --slug lint --stage lint`.
   Gate worker: done message starts `VERDICT: pass|fail`. fail → FIX with the
   lint findings, then LINT again.
 - **PR** — `pr create <worktree>`. One entry point: it pushes the branch,
   creates the PR or reuses the existing one, follows the repo's PR
   template when present, and moves any planning/building/blocked/failed
   status to `pr-open` by itself.
-- **CI CHECK** — `pr get <worktree>` and read the `ci:` line. red → FIX with
-  the failing check names, then PR (push), then CI CHECK again. Newly pushed
-  commits reset the rollup to pending — wait for watchman's next PR event or
-  re-check before calling it red.
+- **CI CHECK** — `pr get <worktree>` and read the `ci:` line (the command
+  itself warns that pending is not red). red → FIX with the failing check
+  names, then PR (push), then CI CHECK again.
 - **WATCH** — passive. PR events arrive via mailbox delivery (see the
   foreman skill); never poll.
   - comment/CHANGES_REQUESTED event → hand over to the respond half:
