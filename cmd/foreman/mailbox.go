@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"assembly/internal/mux"
 	"assembly/internal/store"
@@ -191,32 +190,38 @@ func followMailbox() error {
 	}
 }
 
+// printMessage formats a mailbox message the same way watchman used to push
+// it into the foreman pane, since that pushed text is now read directly (via
+// `mailbox inbox --follow`, typically wrapped in a Monitor) instead.
 func printMessage(m *store.Message) {
-	status := ""
-	if m.Status != "" {
-		status = " [" + m.Status + "]"
+	head := "github event"
+	if m.From != "watch" {
+		head = m.From + " " + m.TaskID
+		if m.Status != "" {
+			head += " [" + m.Status + "]"
+		}
 	}
-	fmt.Printf("%s  %s  task %s%s%s\n  %s\n", m.Time.Local().Format(time.RFC3339), m.From, m.TaskID, status, messageContext(m), m.Body)
-}
-
-func messageContext(m *store.Message) string {
-	if m.Worktree == "" && m.Project == "" && m.IssueID == "" && m.TabLabel == "" {
-		return ""
+	if m.Worktree != "" {
+		head += " " + m.Worktree
+		var inner []string
+		if m.Project != "" {
+			inner = append(inner, m.Project)
+		}
+		if m.IssueID != "" {
+			inner = append(inner, m.IssueID)
+		}
+		if len(inner) > 0 {
+			head += " (" + strings.Join(inner, ", ") + ")"
+		}
+		if m.From != "watch" && m.TabLabel != "" {
+			head += " · tab " + m.TabLabel
+		}
+	} else if m.From == "watch" && m.TaskID != "" && m.Worktree == "" {
+		head += " " + m.TaskID
 	}
-	var b strings.Builder
-	b.WriteString("  " + m.Worktree)
-	var inner []string
-	if m.Project != "" {
-		inner = append(inner, m.Project)
+	body := m.Body
+	if len(body) > 4000 {
+		body = body[:4000] + "\n...(truncated)"
 	}
-	if m.IssueID != "" {
-		inner = append(inner, m.IssueID)
-	}
-	if len(inner) > 0 {
-		b.WriteString(" (" + strings.Join(inner, ", ") + ")")
-	}
-	if m.TabLabel != "" {
-		b.WriteString(" tab " + m.TabLabel)
-	}
-	return b.String()
+	fmt.Printf("[watchman] %s:\n%s\n", head, body)
 }

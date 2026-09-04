@@ -26,7 +26,7 @@ reach the user.
 
 Both halves share one worktree and never run two stages of one pipeline in
 parallel. Run everything through the foreman CLI (`go run ./cmd/foreman ...`);
-watchman pushes each worker report back into this tab.
+reports and events arrive here via mailbox delivery (see the foreman skill).
 
 ## Progress view
 

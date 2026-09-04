@@ -25,7 +25,8 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
   the failing check names, then PR (push), then CI CHECK again. Newly pushed
   commits reset the rollup to pending — wait for watchman's next PR event or
   re-check before calling it red.
-- **WATCH** — passive. Watchman pushes PR events into this tab; never poll.
+- **WATCH** — passive. PR events arrive via mailbox delivery (see the
+  foreman skill); never poll.
   - comment/CHANGES_REQUESTED event → the event body carries the full text of
     all comments and reviews (top-level, review bodies, and inline
     `path:line`); show them to the user verbatim. `pr get <worktree>

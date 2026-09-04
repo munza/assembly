@@ -163,12 +163,34 @@ as `parent_id`; foreman messages use `from: foreman` with the foreman pane as
   `go build -o .assembly/bin/foreman ./cmd/foreman`) and embeds the full path
   in the worker prompt.
 - `foreman mailbox inbox` prints messages and marks the shown ones read.
-  `--follow` keeps watching the mailbox dir (fsnotify) — manual debugging only.
-- The watchman daemon watches the mailbox (fsnotify + 30s sweep) and pushes
-  unread worker/watch messages into the foreman tab via
-  `herdr agent prompt <pane-id>`, marking them read — the central instance
-  never polls. Messages the foreman itself sent are skipped (mailbox send
-  already delivered those into the worker's tab).
+  `--follow` keeps watching the mailbox dir (fsnotify) and prints new
+  messages as they arrive — this is the delivery mechanism into the central
+  instance, wired differently per harness since neither delivery primitive
+  below ever touches the pane's own input line (unlike the old
+  `herdr agent prompt`-based push, which did — see watchman below):
+  - **claude**: run `foreman mailbox inbox --unread --follow` wrapped in a
+    persistent Monitor tool call. Each new message is one native
+    notification, delivered as its own turn.
+  - **pi** (via the `pi-background-tasks` extension — `pi install
+    npm:pi-background-tasks@latest`): `bg_run` only wakes a follow-up turn
+    on a job's *completion*, never on new output from a still-running job
+    (verified — even their own persistent-watch example only tracks
+    crash/exit). So `--follow` alone never wakes pi. Instead `bg_run` a
+    one-shot poller that exits the moment it finds something:
+    `while true; do out=$(./.assembly/bin/foreman mailbox inbox --unread); if [ "$out" != "mailbox empty" ]; then echo "$out"; break; fi; sleep 2; done`
+    — the exit triggers the completion notification, which wakes pi with
+    the message. Re-arm by `bg_run`-ing the same command again after every
+    wake (pi must remember to do this each time — there is no way to make
+    it self-perpetuating from the shell script alone, since `bg_run` is a
+    model-invoked tool, not something a plain script can call into).
+- The watchman daemon polls GitHub (`--interval`, default 60s) and writes
+  results into the mailbox as `from: watch` messages; it does not deliver
+  anything itself. It previously pushed messages into the foreman pane via
+  `herdr agent prompt`, which types straight into the pane's live input
+  line — with no way to check for unsent human input there first, a message
+  could land mid-keystroke and corrupt what the user was typing. That path
+  was removed; `ForemanPane` now exists only so watchman can check liveness
+  (`herdr agent get`) and exit when the foreman agent is gone.
 - Workers must have the `foreman` binary on PATH (install with
   `go install ./cmd/foreman`); the task prompt tells them the exact command to run.
 

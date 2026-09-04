@@ -2,12 +2,10 @@ package watchman
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +23,7 @@ type Options struct {
 	Interval    int    // GitHub poll interval in seconds; 0 disables polling
 	Project     string // limit polling to one project
 	PRs         bool   // poll PRs (comments, reviews, review requests)
-	ForemanPane string // foreman tab pane ID; empty disables delivery and liveness exit
+	ForemanPane string // foreman tab pane ID, watched only for liveness (empty disables the exit-when-gone check); watchman does not deliver messages into it -- see `foreman mailbox inbox --follow`
 }
 
 type State struct {
@@ -84,11 +82,9 @@ func logf(format string, args ...any) {
 }
 
 // Run is the daemon loop. It blocks until SIGTERM/SIGINT, or until the
-// foreman pane it is bound to disappears.
+// foreman pane it is bound to disappears. It polls GitHub and writes results
+// into the mailbox; it does not deliver messages itself (see package doc).
 func Run(opts Options) error {
-	if err := os.MkdirAll(store.MailboxDir(), 0o755); err != nil {
-		return err
-	}
 	if opts.Interval > 0 && !git.GhAvailable() {
 		logf("gh not found in PATH; GitHub polling disabled")
 		opts.Interval = 0
@@ -99,15 +95,6 @@ func Run(opts Options) error {
 	}
 	defer os.Remove(StatePath())
 	logf("started pid %d, foreman pane %q, poll interval %ds", st.PID, opts.ForemanPane, opts.Interval)
-
-	w, err := New()
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-	if err := w.AddDir(store.MailboxDir()); err != nil {
-		return err
-	}
 
 	seen := NewSeenComments()
 	poll := func() {
@@ -121,9 +108,6 @@ func Run(opts Options) error {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
-	mailTick := time.NewTicker(30 * time.Second)
-	defer mailTick.Stop()
 
 	var pollC <-chan time.Time
 	if opts.Interval > 0 {
@@ -140,17 +124,12 @@ func Run(opts Options) error {
 		defer liveTick.Stop()
 	}
 
-	deliver(opts.ForemanPane)
 	misses := 0
 	for {
 		select {
 		case <-sig:
 			logf("stopping")
 			return nil
-		case <-w.Events:
-			deliver(opts.ForemanPane)
-		case <-mailTick.C:
-			deliver(opts.ForemanPane)
 		case <-pollC:
 			poll()
 		case <-liveC:
@@ -169,67 +148,6 @@ func Run(opts Options) error {
 				logf("foreman agent gone; stopping")
 				return nil
 			}
-		case err := <-w.Errors:
-			logf("mailbox watch: %v", err)
 		}
 	}
-}
-
-// deliver pushes unread worker and watch messages into the foreman tab and
-// marks them read. Messages the foreman itself sent are skipped: mailbox send
-// already delivered those into the worker's tab.
-func deliver(pane string) {
-	if pane == "" {
-		return
-	}
-	ms, err := store.UnreadMessages()
-	if err != nil {
-		logf("mailbox: %v", err)
-		return
-	}
-	for _, m := range ms {
-		if m.From == "foreman" {
-			continue
-		}
-		if err := mux.AgentPrompt(pane, PromptText(m)); err != nil {
-			logf("deliver: %v", err)
-			continue
-		}
-		if err := store.MarkRead(m.ID); err != nil {
-			logf("mark read %s: %v", m.ID, err)
-		}
-	}
-}
-
-func PromptText(m *store.Message) string {
-	head := "github event"
-	if m.From != "watch" {
-		head = m.From + " " + m.TaskID
-		if m.Status != "" {
-			head += " [" + m.Status + "]"
-		}
-	}
-	if m.Worktree != "" {
-		head += " " + m.Worktree
-		var inner []string
-		if m.Project != "" {
-			inner = append(inner, m.Project)
-		}
-		if m.IssueID != "" {
-			inner = append(inner, m.IssueID)
-		}
-		if len(inner) > 0 {
-			head += " (" + strings.Join(inner, ", ") + ")"
-		}
-		if m.From != "watch" && m.TabLabel != "" {
-			head += " · tab " + m.TabLabel
-		}
-	} else if m.From == "watch" && m.TaskID != "" && m.Worktree == "" {
-		head += " " + m.TaskID
-	}
-	body := m.Body
-	if len(body) > 4000 {
-		body = body[:4000] + "\n...(truncated)"
-	}
-	return fmt.Sprintf("[watchman] %s:\n%s", head, body)
 }

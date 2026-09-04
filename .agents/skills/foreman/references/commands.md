@@ -92,10 +92,11 @@ watchman stop
 watchman status
 ```
 
-Pushes unread worker/watch mailbox messages into the foreman tab
-(`herdr agent prompt`) and polls GitHub PRs. Auto-starts detached on any
-foreman command run from the foreman tab; exits when the pane's agent is
-gone (tab closed or pi exited).
+Polls GitHub PRs and writes results into the mailbox; does not deliver
+messages itself (see the foreman skill for how the central instance arms
+mailbox delivery, since that's harness-specific). Auto-starts detached on
+any foreman command run from the foreman tab; exits when the pane's agent is
+gone (tab closed or agent exited).
 
 ## Status models
 

@@ -5,8 +5,9 @@
 ```
 
 Single pass — no fix loops (the author fixes; we only review). Use for PRs
-where the user is the requested reviewer (watchman pushes `review requested:
-PR #N <title>`) or when the user says `pipeline review <pr>`.
+where the user is the requested reviewer (mailbox delivery surfaces
+`review requested: PR #N <title>`) or when the user says
+`pipeline review <pr>`.
 
 ## Stages
 

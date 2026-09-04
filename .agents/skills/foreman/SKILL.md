@@ -103,12 +103,13 @@ Check `status` at the start of every conversation and after acting on messages.
 
 ## Reacting to worker reports
 
-Reports and GitHub events arrive here automatically: the watchman daemon
-pushes them into this tab as `[watchman] ...` prompts. Never poll the mailbox
-and never hold a turn waiting for a message. This includes verifying watchman
-behavior: after (re)starting it or dispatching work, check `watchman status`
-(instant) if needed and **end the turn** — never `sleep` or wait-and-recheck;
-the next event (or its absence) is the verification.
+Reports and GitHub events arrive as `[watchman] ...` messages once you have
+mailbox delivery armed — see "Watchman daemon" below for how, since it
+differs by harness. Never poll the mailbox yourself and never hold a turn
+waiting for a message; let delivery wake you instead. This includes verifying
+watchman behavior: after (re)starting it or dispatching work, check
+`watchman status` (instant) if needed and **end the turn** — never `sleep` or
+wait-and-recheck; the next event (or its absence) is the verification.
 
 Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by status:
 
@@ -144,17 +145,38 @@ offer to dispatch a `respond` task.
 
 ## Watchman daemon
 
-The `watchman` daemon is the always-on background half: it watches the mailbox
-and pushes every worker report and GitHub PR event into this tab as a
-`[watchman] ...` prompt, and polls GitHub (comments, reviews, review requests,
-PR state changes) every 60s. You never start it manually — any foreman command
-from this tab boots it detached, bound to this pane, and it stops itself when
-the tab closes or the pi instance exits.
+The `watchman` daemon polls GitHub (comments, reviews, review requests, PR
+state changes) every 60s and writes results into the mailbox as `from: watch`
+messages. You never start it manually — any foreman command from this tab
+boots it detached, bound to this pane for liveness only, and it stops itself
+when the tab closes or the agent exits.
 
 ```bash
 go run ./cmd/watchman status    # running? pid, bound pane, log path
 go run ./cmd/watchman stop      # manual stop (rarely needed)
 ```
+
+Watchman does **not** deliver messages itself — it used to push into this tab
+via `herdr agent prompt`, which types straight into the pane's live input
+line with no way to check for unsent human input first, so a push could land
+mid-keystroke and corrupt whatever the user was typing. That path was
+removed. Delivery is now armed by you, once per session, using whichever of
+these matches your own harness (see `references/protocol.md` for the full
+rationale and exact commands):
+
+- **claude**: wrap `foreman mailbox inbox --unread --follow` in a persistent
+  Monitor tool call. Each new message arrives as its own native notification.
+- **pi**: install `pi-background-tasks` once (`pi install
+  npm:pi-background-tasks@latest`), then `bg_run` a one-shot poller that
+  exits the moment `foreman mailbox inbox --unread` returns something other
+  than `mailbox empty` — its exit triggers pi's completion-wake with the
+  message. Re-arm by `bg_run`-ing the same poller again after every wake;
+  there is no way to make this self-perpetuating, since `bg_run` is a
+  model-invoked tool a shell script cannot call into itself.
+
+If you notice mailbox delivery isn't armed (e.g. a fresh session, or after
+restarting), set it up before relying on automatic reports — otherwise
+messages just sit unread until you next check.
 
 When it reports PR comments, show them to the user and offer to dispatch a
 `respond` task.
