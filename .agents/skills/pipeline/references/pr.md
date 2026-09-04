@@ -43,7 +43,7 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
        `pr comment <worktree> --body "<text>" --reply <inline-comment-id>`
        (thread reply; omit `--reply` for a top-level comment; get ids from
        `pr get <worktree> --comments --json`).
-    Approved → `respond "Address review comments: <threads/summary>" --thread --worktree <slug> --slug respond-r<N>`,
+    Approved → `respond "Address review comments: <threads/summary>" --thread --worktree <slug> --slug respond-pr-<PR#>-r<N>`,
     then on its done → PR (push) → CI CHECK → back to WATCH.
   - APPROVED (and `pr get` confirms CI green) → tell the user it is ready to
     merge. The user merges; never merge yourself.
@@ -56,7 +56,8 @@ WATCH ├─ comments/CHANGES_REQUESTED → show user, ask → RESPOND → PR �
 ## Rules
 
 1. Rounds are counted per loop: CI-fix rounds and comment-response rounds are
-   separate caps of 3. Slug suffixes track them (`fix-r2`, `respond-r2`).
+   separate caps of 3. Slug suffixes track them (`fix-r2`, `respond-pr-3-r2`)
+   — respond slugs include the PR number since they're always about one.
 2. Escalate at round 3 exactly like the shared rules in the main SKILL.md.
 3. `pr create` is the only push path — workers never push; after any FIX or
    RESPOND the pipeline pushes via `pr create <worktree>` (reuses the PR).
