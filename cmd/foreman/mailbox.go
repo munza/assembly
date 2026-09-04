@@ -137,9 +137,16 @@ func newMailboxCmd() *cobra.Command {
 					return err
 				}
 			}
-			if workerSend && t.TabID != "" && (sendStatus == store.TaskDone || sendStatus == store.TaskFailed) && (t.Type == "research" || t.Type == "plan" || t.Type == "test") {
+			if workerSend && t.TabID != "" {
+			// done always closes the tab: the worker is finished. failed closes
+			// it only for the report-writing types; build/fix/review/respond
+			// failures stay open so the foreman (or user) can inspect the tab.
+			closesTab := sendStatus == store.TaskDone ||
+				(sendStatus == store.TaskFailed && (t.Type == "research" || t.Type == "plan" || t.Type == "test"))
+			if closesTab {
 				closeTaskTab(s, t)
 			}
+		}
 			if !workerSend && t.AgentName != "" && t.PaneID != "" {
 				if err := mux.AgentPrompt(t.AgentName, args[1]); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not prompt agent: %v\n", err)
