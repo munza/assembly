@@ -116,7 +116,7 @@ func newPipelineCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := resolvePipeline(s, args[0])
+			p, wt, err := resolvePipeline(s, args[0])
 			if err != nil {
 				return err
 			}
@@ -129,10 +129,11 @@ func newPipelineCmd() *cobra.Command {
 				Worktree string        `json:"worktree"`
 				IssueID  string        `json:"issue_id,omitempty"`
 				Half     string        `json:"half"`
+				Hold     string        `json:"hold,omitempty"`
 				Reports  []reportView  `json:"reports"`
 				Tasks    []*store.Task `json:"tasks"`
 			}
-			v := view{Worktree: p.Worktree, IssueID: p.IssueID, Half: p.Half, Tasks: tasks}
+			v := view{Worktree: p.Worktree, IssueID: p.IssueID, Half: p.Half, Hold: wt.Hold, Tasks: tasks}
 			for _, r := range p.Reports {
 				_, err := os.Stat(r)
 				v.Reports = append(v.Reports, reportView{Path: r, Exists: err == nil})
@@ -163,7 +164,7 @@ func newPipelineCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := resolvePipeline(s, args[0])
+			p, _, err := resolvePipeline(s, args[0])
 			if err != nil {
 				return err
 			}
@@ -192,7 +193,7 @@ func newPipelineCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := resolvePipeline(s, args[0])
+			p, _, err := resolvePipeline(s, args[0])
 			if err != nil {
 				return err
 			}
@@ -233,16 +234,16 @@ func validPipelineHalf(h string) bool {
 	return false
 }
 
-func resolvePipeline(s *store.State, ref string) (*store.Pipeline, error) {
+func resolvePipeline(s *store.State, ref string) (*store.Pipeline, *store.Worktree, error) {
 	wt, err := store.ResolveWorktree(s, ref)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	p, ok := s.Pipelines[wt.Slug]
 	if !ok {
-		return nil, fmt.Errorf("worktree %s has no pipeline; run `pipeline add %s`", wt.Slug, wt.Slug)
+		return nil, nil, fmt.Errorf("worktree %s has no pipeline; run `pipeline add %s`", wt.Slug, wt.Slug)
 	}
-	return p, nil
+	return p, wt, nil
 }
 
 var pipelineGetText = template.Must(template.New("pipeline").Parse(`Worktree:  {{.V.Worktree}}
@@ -251,6 +252,9 @@ Issue:     {{.V.IssueID}}
 {{- end}}
 Half:      {{.V.Half}}
 Updated:   {{.Updated}}
+{{- if .V.Hold}}
+Hold:      {{.V.Hold}}
+{{- end}}
 {{- if .V.Reports}}
 
 Reports:
