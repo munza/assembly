@@ -119,7 +119,10 @@ foreman
                              #  planning/building/blocked/failed status moves to
                              #  pr-open automatically)
     comment <pr|worktree>    # --body <text> [--reply <comment-id>] post a comment
-                             #  or a threaded reply to an inline review comment
+                             #  or a threaded reply to an inline review comment;
+                             #  --file <path> --line <n> posts a NEW inline
+                             #  comment anchored on the diff (ids shown by
+                             #  `pr get --comments` and in watch events)
     review <pr-number>       # --verdict approve|comment|request-changes --body <text>
                              #  submit a review (repo from --repo or the pr-N worktree)
                              #  --comments-json '[{"path":..,"line":N,"body":..}]' for inline

@@ -107,7 +107,7 @@ func PollGitHub(opts Options, seen seenComments) (int, error) {
 					key := fmt.Sprintf("%s#%d-rr", name, int(num))
 					if seen[key] == 0 {
 						title, _ := pr["title"].(string)
-					appendEvent(name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
+						appendEvent(name, fmt.Sprintf("review requested: PR #%d %s", int(num), title))
 						seen[key] = 1
 						events++
 					}
@@ -284,7 +284,8 @@ func commentDetail(v map[string]any, inline []map[string]any) string {
 				loc = fmt.Sprintf("%s:%d (original)", path, int(line))
 			}
 			body, _ := ic["body"].(string)
-			lines = append(lines, fmt.Sprintf("- @%s on %s: %s", author, loc, body))
+			id, _ := ic["id"].(float64)
+			lines = append(lines, fmt.Sprintf("- @%s on %s [#%d]: %s", author, loc, int(id), body))
 		}
 	}
 	return strings.Join(lines, "\n")

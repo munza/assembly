@@ -14,9 +14,9 @@ shared rules.
 ## Stages
 
 1. **SHOW** — the watch event body carries the full text of all new comments
-   and reviews (top-level, review bodies, inline `path:line`). Show them to
-   the user verbatim; `foreman pr get <worktree> --comments` re-prints them
-   if needed.
+   and reviews (top-level, review bodies, inline `path:line [#id]`). Show
+   them to the user verbatim; `foreman pr get <worktree> --comments`
+   re-prints them (inline entries carry their `[#id]`) if needed.
 2. **CONFIRM** — ONE `ask_user_question` with two questions, each quoting the
    original comment(s) in the question text (author, file:line, full body
    verbatim) so the user decides with full context:
@@ -30,13 +30,15 @@ shared rules.
    `respond-pr-3-r2`, ...).
 4. **PUSH** — `foreman pr create <worktree>` after the respond task reports
    done (per the pr half's rules: the only push path; workers never push).
-5. **REPLY** — post the thread reply chosen in CONFIRM: `foreman pr comment
-   <worktree> --body "<text>" --reply <inline-comment-id>` (thread reply;
-   omit `--reply` for a top-level comment; ids from
-   `pr get <worktree> --comments --json`). If a respond task ran, post it
-   after PUSH so the body can include the commit sha; otherwise post
-   immediately — or not, per the user's choice. The body is posted as
-   Markdown: wrap code-like tokens in backticks.
+5. **REPLY** — post the reply chosen in CONFIRM, in the SAME thread the
+   comment lives in: an inline comment (it has an `[#id]`) gets
+   `foreman pr comment <worktree> --body "<text>" --reply <id>`; only a
+   top-level original gets a top-level reply (omit `--reply`). Never answer
+   an inline comment with a top-level comment — the thread is where the
+   author is looking. If a respond task ran, post it after PUSH so the body
+   can include the commit sha; otherwise post immediately — or not, per the
+   user's choice. The body is posted as Markdown: wrap code-like tokens in
+   backticks.
 6. **CI CHECK** — the pr half's CI CHECK, re-entered: `foreman pr get
    <worktree>`, read the `ci:` line. Newly pushed commits reset the rollup
    to pending — wait for the next PR event or re-check before calling it

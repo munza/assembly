@@ -159,13 +159,24 @@ func newPRCmd() *cobra.Command {
 
 	var commentBody string
 	var commentReplyID int
+	var commentFile string
+	var commentLine int
 	commentCmd := &cobra.Command{
 		Use:   "comment <pr|worktree>",
-		Short: "Post a comment on a PR (optionally as a thread reply)",
+		Short: "Post a comment on a PR: top-level, inline on a file/line, or a thread reply",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(commentBody) == "" {
 				return fmt.Errorf("--body is required")
+			}
+			if commentFile != "" && commentLine <= 0 {
+				return fmt.Errorf("--file also needs --line <n>")
+			}
+			if commentFile == "" && commentLine > 0 {
+				return fmt.Errorf("--line also needs --file <path>")
+			}
+			if commentFile != "" && commentReplyID > 0 {
+				return fmt.Errorf("--file/--line posts a new inline comment; --reply threads under an existing one — pick one")
 			}
 			s, err := store.Load()
 			if err != nil {
@@ -184,11 +195,26 @@ func newPRCmd() *cobra.Command {
 				return err
 			}
 			if flagDryRun {
-				if commentReplyID > 0 {
+				switch {
+				case commentFile != "":
+					fmt.Printf("would run: gh api repos/%s/pulls/%d/comments (body: %s, path: %s, line: %d)\n", p.Repo, prNum, oneLine(commentBody), commentFile, commentLine)
+				case commentReplyID > 0:
 					fmt.Printf("would run: gh api repos/%s/pulls/%d/comments/%d/replies (body: %s)\n", p.Repo, prNum, commentReplyID, oneLine(commentBody))
-				} else {
+				default:
 					fmt.Printf("would run: gh pr comment %d --repo %s (body: %s)\n", prNum, p.Repo, oneLine(commentBody))
 				}
+				return nil
+			}
+			if commentFile != "" {
+				url, id, err := git.PRCommentInline(p.Repo, prNum, commentFile, commentLine, commentBody)
+				if err != nil {
+					return err
+				}
+				wt.SelfComments = append(wt.SelfComments, id)
+				if err := store.Save(s); err != nil {
+					return err
+				}
+				fmt.Printf("posted inline comment #%d on PR #%d at %s:%d: %s\n", id, prNum, commentFile, commentLine, url)
 				return nil
 			}
 			if commentReplyID > 0 {
@@ -216,6 +242,8 @@ func newPRCmd() *cobra.Command {
 		},
 	}
 	commentCmd.Flags().StringVar(&commentBody, "body", "", "comment text")
+	commentCmd.Flags().StringVar(&commentFile, "file", "", "post inline on this file (needs --line)")
+	commentCmd.Flags().IntVar(&commentLine, "line", 0, "line the inline comment anchors to (needs --file)")
 	commentCmd.Flags().IntVar(&commentReplyID, "reply", 0, "inline comment ID to reply to (thread reply)")
 
 	var reviewVerdict, reviewBody, reviewRepo, reviewCommentsJSON string
@@ -666,7 +694,8 @@ func printPR(v map[string]any) {
 				line, _ = ic["original_line"].(float64)
 			}
 			body, _ := ic["body"].(string)
-			fmt.Printf("  @%s on %s:%d: %s\n", login, path, int(line), body)
+			id, _ := ic["id"].(float64)
+			fmt.Printf("  @%s [#%d] on %s:%d: %s\n", login, int(id), path, int(line), body)
 		}
 	}
 }

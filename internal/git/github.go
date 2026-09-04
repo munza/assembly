@@ -165,6 +165,32 @@ func PRComment(repo string, number int, body string) (string, int, error) {
 	return url, id, nil
 }
 
+// PRCommentInline posts a single comment anchored to a file/line on the
+// PR diff — the standalone counterpart of the inline comments a review
+// carries. GitHub's oneOf schema demands a commit_id alongside line; the
+// PR head sha pins the anchor to what the reader sees today. Replies to it
+// (PRReplyComment) thread under it on GitHub.
+func PRCommentInline(repo string, number int, path string, line int, body string) (string, int, error) {
+	sha, err := run("", "pr", "view", fmt.Sprintf("%d", number), "--repo", repo, "--json", "headRefOid", "-q", ".headRefOid")
+	if err != nil {
+		return "", 0, err
+	}
+	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments", repo, number),
+		"-f", "body="+body, "-f", "path="+path, "-F", fmt.Sprintf("line=%d", line),
+		"-f", "commit_id="+strings.TrimSpace(string(sha)))
+	if err != nil {
+		return "", 0, err
+	}
+	var r struct {
+		ID      int    `json:"id"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.Unmarshal(out, &r); err != nil {
+		return "", 0, err
+	}
+	return r.HTMLURL, r.ID, nil
+}
+
 func PRReplyComment(repo string, number, commentID int, body string) (int, error) {
 	out, err := run("", "api", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", repo, number, commentID), "-f", "body="+body)
 	if err != nil {
@@ -190,9 +216,9 @@ type ReviewComment struct {
 
 func reviewEvent(verdict string) (string, error) {
 	event := map[string]string{
-		"approve":          "APPROVE",
-		"comment":          "COMMENT",
-		"request-changes":  "REQUEST_CHANGES",
+		"approve":         "APPROVE",
+		"comment":         "COMMENT",
+		"request-changes": "REQUEST_CHANGES",
 	}[verdict]
 	if event == "" {
 		return "", fmt.Errorf("invalid verdict %q; valid: approve|comment|request-changes", verdict)
