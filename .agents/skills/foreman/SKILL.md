@@ -93,7 +93,7 @@ Workers report via `mailbox send <task-id> "<msg>" --status ...`. Handle by stat
 ```bash
 go run ./cmd/foreman pr create eng-123            # title defaults from Linear issue
 go run ./cmd/foreman pr get eng-123 --comments
-go run ./cmd/foreman respond "address review comments on thread X" --thread --worktree eng-123
+go run ./cmd/foreman respond "address review comments" --thread 3934008694 --worktree eng-123
 go run ./cmd/foreman worktree update eng-123 --status addressing-comments
 ```
 

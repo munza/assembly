@@ -196,15 +196,15 @@ func checkGateMarkers(typ, body string) error {
 	if typ == "test" {
 		first := body
 		if i := strings.IndexAny(first, "\r\n"); i >= 0 {
-				first = first[:i]
-			}
+			first = first[:i]
+		}
 		first = strings.TrimSpace(first)
 		if strings.HasPrefix(first, "VERDICT:") {
-				v := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(first, "VERDICT:")))
-				if v == "pass" || v == "fail" {
-					return nil
-				}
+			v := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(first, "VERDICT:")))
+			if v == "pass" || v == "fail" {
+				return nil
 			}
+		}
 		return fmt.Errorf("test done message must start with `VERDICT: pass` or `VERDICT: fail`; resend with the verdict on the first line")
 	}
 	if typ == "review" {
@@ -213,21 +213,21 @@ func checkGateMarkers(typ, body string) error {
 			line := strings.TrimSpace(lines[i])
 			if !strings.HasPrefix(line, "FINDINGS:") {
 				continue
-				}
+			}
 			rest := strings.TrimSpace(strings.TrimPrefix(line, "FINDINGS:"))
-				if strings.EqualFold(rest, "none") {
-					return nil
-				}
-				if rest == "" {
-					for _, l := range lines[i+1:] {
-						l = strings.TrimSpace(l)
-						if len(l) >= 2 && l[0] >= '1' && l[0] <= '9' && (l[1] == '.' || l[1] == ')') {
-							return nil
-						}
+			if strings.EqualFold(rest, "none") {
+				return nil
+			}
+			if rest == "" {
+				for _, l := range lines[i+1:] {
+					l = strings.TrimSpace(l)
+					if len(l) >= 2 && l[0] >= '1' && l[0] <= '9' && (l[1] == '.' || l[1] == ')') {
+						return nil
 					}
 				}
-				break
 			}
+			break
+		}
 		return fmt.Errorf("review done message must end with `FINDINGS: none` or `FINDINGS:` followed by numbered findings; resend in that shape")
 	}
 	return nil
@@ -250,15 +250,15 @@ func recordDoneReport(s *store.State, t *store.Task, body string) {
 		if strings.Contains(f, "output/") {
 			path = f
 			break
-			}
+		}
 	}
 	if path == "" {
 		return
 	}
 	for _, r := range p.Reports {
 		if r == path {
-				return
-			}
+			return
+		}
 	}
 	p.Reports = append(p.Reports, path)
 	p.Updated = time.Now()
@@ -292,7 +292,7 @@ func relayResearchReports(s *store.State, done *store.Task) {
 		msg := "Research done, reports: " + strings.Join(p.Reports, ", ") + " — plan now."
 		if err := mux.AgentPrompt(t.AgentName, msg); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not relay research reports to plan task %s: %v\n", t.ID, err)
-				return
+			return
 		}
 		fmt.Printf("relayed %d report path(s) to waiting plan task %s\n", len(p.Reports), t.ID)
 		return

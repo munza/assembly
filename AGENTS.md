@@ -92,7 +92,9 @@ foreman
     list                     # --status --type --worktree (filters)
     add                      # --type plan|research|build|test|fix|review|respond
                              # --note --slug --stage --worktree
-                             # --general | --thread (note kind)
+                             # --general (note kind) | --thread <comment-id>
+                             #  (respond anchor: id recorded on the task,
+                             #  embedded in the worker prompt, resume-safe)
                              # a repeated --slug auto-rounds: test -> test-r2, -r3
                              # --stage tags the pipeline stage (doc/lint disambiguate)
     get <task-id>
@@ -186,7 +188,7 @@ foreman test <note>       # = task add --type test --note <note> (test gate: ver
 foreman fix <note>        # = task add --type fix --note <note> (implement findings)
 foreman respond <note>
   --general               # general note, no target
-  --thread                # note tied to a review thread
+  --thread <comment-id>   # respond to this PR comment/thread (the anchor)
   --task
   --issue
   --worktree

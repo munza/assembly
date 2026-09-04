@@ -41,10 +41,10 @@ type statusFilter struct {
 
 func newTaskCmd() *cobra.Command {
 	var (
-		addSlug, addType, addNote, addWorktree, addStage string
-		addGeneral, addThread                            bool
-		listFilter                                       statusFilter
-		updateStatus, updateNote                         string
+		addSlug, addType, addNote, addWorktree, addStage, addThread string
+		addGeneral                                                  bool
+		listFilter                                                  statusFilter
+		updateStatus, updateNote                                    string
 	)
 
 	list := &cobra.Command{
@@ -83,12 +83,12 @@ func newTaskCmd() *cobra.Command {
 		Short: "Create a task",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			noteKind := ""
-			if addThread {
+			if addThread != "" {
 				noteKind = "thread"
 			} else if addGeneral {
 				noteKind = "general"
 			}
-			t, err := addTask(addType, addNote, addSlug, addWorktree, addStage, noteKind)
+			t, err := addTask(addType, addNote, addSlug, addWorktree, addStage, noteKind, addThread)
 			if err != nil {
 				return err
 			}
@@ -107,7 +107,7 @@ func newTaskCmd() *cobra.Command {
 	add.Flags().StringVar(&addNote, "note", "", "what the task should do")
 	add.Flags().StringVar(&addWorktree, "worktree", "", "target worktree (defaults to the only worktree)")
 	add.Flags().BoolVar(&addGeneral, "general", false, "note is a general note")
-	add.Flags().BoolVar(&addThread, "thread", false, "note is tied to a review thread")
+	add.Flags().StringVar(&addThread, "thread", "", "PR comment/thread id this task responds to (the anchor)")
 
 	get := &cobra.Command{
 		Use:   "get <task-id>",
@@ -402,7 +402,7 @@ func runTaskAgent(s *store.State, t *store.Task) error {
 	return nil
 }
 
-func addTask(typ, note, slug, worktreeRef, stage, noteKind string) (*store.Task, error) {
+func addTask(typ, note, slug, worktreeRef, stage, noteKind, threadID string) (*store.Task, error) {
 	if typ == "" {
 		return nil, fmt.Errorf("--type is required: %s", strings.Join(taskTypes, "|"))
 	}
@@ -456,6 +456,7 @@ func addTask(typ, note, slug, worktreeRef, stage, noteKind string) (*store.Task,
 		Status:   store.TaskPending,
 		Note:     note,
 		NoteKind: noteKind,
+		ThreadID: threadID,
 	}
 	if flagDryRun {
 		fmt.Printf("would create task %s (%s) in worktree %s — %s\n", t.ID, t.Type, t.Worktree, oneLine(t.Note))
@@ -499,6 +500,9 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin, stateDir string, resear
 	fmt.Fprintf(&b, "You are worker task %s (%s) in git worktree %q (branch %s).", t.ID, t.Type, wt.Slug, wt.Branch)
 	if t.NoteKind != "" {
 		fmt.Fprintf(&b, " Note kind: %s.", t.NoteKind)
+	}
+	if t.ThreadID != "" {
+		fmt.Fprintf(&b, "\nThis task addresses PR comment thread #%s: run `%s pr get %s --comments` (inline comments carry [#id]) or `gh api repos/<owner>/<repo>/pulls/comments/%s` to see the exact comment and its file:line before changing anything.", t.ThreadID, bin, wt.Slug, t.ThreadID)
 	}
 	fmt.Fprintf(&b, "\nTask: %s\n", t.Note)
 	if wt.IssueID != "" {
@@ -603,6 +607,9 @@ Type:      {{.Type}}
 Status:    {{.Status}}
 {{- if .NoteKind}}
 NoteKind:  {{.NoteKind}}
+{{- end}}
+{{- if .ThreadID}}
+Thread:    #{{.ThreadID}}
 {{- end}}
 {{- if .TabID}}
 Tab:       {{if .Slug}}{{.Slug}}{{else}}{{.Type}}-{{.ID}}{{end}} (agent {{.AgentName}})

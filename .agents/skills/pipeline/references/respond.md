@@ -25,9 +25,12 @@ shared rules.
       fix is pushed (Recommended)` / `No reply` — the user may type their own
       message instead (posted as the reply).
 3. **RESPOND** — if dispatched: `foreman respond "Address review comments:
-   <threads/summary>" --thread --worktree <slug> --slug respond-pr-<PR#> --stage respond`,
-   then `task execute`. The slug auto-rounds per loop (`respond-pr-3`,
-   `respond-pr-3-r2`, ...).
+   <threads/summary>" --thread <comment-id> --worktree <slug> --slug respond-pr-<PR#> --stage respond`,
+   then `task execute`. The `--thread` id is the anchor of the comment being
+   addressed (from the SHOW step) — recorded on the task and embedded in the
+   worker prompt, so the worker fetches the exact comment and location
+   itself and the anchor survives resumes. The slug auto-rounds per loop
+   (`respond-pr-3`, `respond-pr-3-r2`, ...).
 4. **PUSH** — `foreman pr create <worktree>` after the respond task reports
    done (per the pr half's rules: the only push path; workers never push).
 5. **REPLY** — post the reply chosen in CONFIRM, in the SAME thread the

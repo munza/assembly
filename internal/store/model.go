@@ -52,6 +52,7 @@ type Task struct {
 	Status    string `json:"status"`
 	Note      string `json:"note,omitempty"`
 	NoteKind  string `json:"note_kind,omitempty"`
+	ThreadID  string `json:"thread_id,omitempty"`
 	TabID     string `json:"tab_id,omitempty"`
 	PaneID    string `json:"pane_id,omitempty"`
 	AgentName string `json:"agent_name,omitempty"`
