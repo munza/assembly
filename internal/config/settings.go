@@ -11,10 +11,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type WorktreeSettings struct {
+	Init         string `json:"init,omitempty"`
+	BranchPrefix string `json:"branch_prefix,omitempty"`
+}
+
 type Project struct {
-	Path        string `json:"path"`
-	Repo        string `json:"repo"`
-	IssuePrefix string `json:"issue_prefix,omitempty"`
+	Path        string            `json:"path"`
+	Repo        string            `json:"repo"`
+	IssuePrefix string            `json:"issue_prefix,omitempty"`
+	Worktree    *WorktreeSettings `json:"worktree,omitempty"`
 }
 
 type Linear struct {
@@ -23,10 +29,9 @@ type Linear struct {
 }
 
 type Settings struct {
-	Linear       Linear              `json:"linear"`
-	Harness      string              `json:"harness,omitempty"`
-	BranchPrefix string              `json:"branch_prefix,omitempty"`
-	Projects     map[string]*Project `json:"projects"`
+	Linear   Linear              `json:"linear"`
+	Harness  string              `json:"harness,omitempty"`
+	Projects map[string]*Project `json:"projects"`
 }
 
 func Dir() string {

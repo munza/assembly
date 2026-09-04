@@ -23,6 +23,12 @@ Path:        {{.Project.Path}}
 {{- if .Project.IssuePrefix}}
 IssuePrefix: {{.Project.IssuePrefix}}
 {{- end}}
+{{- if .Project.WorktreeInit}}
+WorktreeInit: {{.Project.WorktreeInit}}
+{{- end}}
+{{- if .Project.BranchPrefix}}
+BranchPrefix: {{.Project.BranchPrefix}}
+{{- end}}
 Workspace:   {{.Project.WorkspaceID}}
 {{- range .Worktrees}}
 Worktree:    {{.Slug}} ({{.Branch}}, {{.Status}})
@@ -32,6 +38,8 @@ Worktree:    {{.Slug}} ({{.Branch}}, {{.Status}})
 func newProjectCmd() *cobra.Command {
 	var addName string
 	var addIssuePrefix string
+	var addWorktreeInit string
+	var addBranchPrefix string
 	var removePurge bool
 
 	list := &cobra.Command{
@@ -101,9 +109,19 @@ func newProjectCmd() *cobra.Command {
 				if addIssuePrefix != "" {
 					fmt.Printf("issue_prefix: %s\n", addIssuePrefix)
 				}
+				if addWorktreeInit != "" {
+					fmt.Printf("worktree.init: %s\n", addWorktreeInit)
+				}
+				if addBranchPrefix != "" {
+					fmt.Printf("worktree.branch_prefix: %s\n", addBranchPrefix)
+				}
 				return nil
 			}
-			st.Projects[name] = &config.Project{Path: path, Repo: repo, IssuePrefix: addIssuePrefix}
+			var wtSettings *config.WorktreeSettings
+			if addWorktreeInit != "" || addBranchPrefix != "" {
+				wtSettings = &config.WorktreeSettings{Init: addWorktreeInit, BranchPrefix: addBranchPrefix}
+			}
+			st.Projects[name] = &config.Project{Path: path, Repo: repo, IssuePrefix: addIssuePrefix, Worktree: wtSettings}
 			if err := config.Save(st); err != nil {
 				return err
 			}
@@ -113,6 +131,8 @@ func newProjectCmd() *cobra.Command {
 	}
 	add.Flags().StringVar(&addName, "name", "", "project name (defaults to directory name)")
 	add.Flags().StringVar(&addIssuePrefix, "issue-prefix", "", "regex matching this project's Linear issue IDs, e.g. ^(ENG|TAW)-")
+	add.Flags().StringVar(&addWorktreeInit, "worktree-init", "", "shell command to run in each new worktree right after it's created, e.g. dependency/docker setup")
+	add.Flags().StringVar(&addBranchPrefix, "branch-prefix", "", "prefix for this project's worktree branch names, e.g. foreman/")
 
 	get := &cobra.Command{
 		Use:   "get <project>",
@@ -210,17 +230,23 @@ type projectRow struct {
 }
 
 type projView struct {
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	Repo        string `json:"repo"`
-	IssuePrefix string `json:"issue_prefix,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	Repo         string `json:"repo"`
+	IssuePrefix  string `json:"issue_prefix,omitempty"`
+	WorktreeInit string `json:"worktree_init,omitempty"`
+	BranchPrefix string `json:"branch_prefix,omitempty"`
+	WorkspaceID  string `json:"workspace_id,omitempty"`
 }
 
 func projectViews(s *store.State, st *config.Settings) map[string]*projView {
 	out := map[string]*projView{}
 	for name, p := range st.Projects {
 		v := &projView{Name: name, Path: p.Path, Repo: p.Repo, IssuePrefix: p.IssuePrefix}
+		if p.Worktree != nil {
+			v.WorktreeInit = p.Worktree.Init
+			v.BranchPrefix = p.Worktree.BranchPrefix
+		}
 		if ps, ok := s.Projects[name]; ok && ps != nil {
 			v.WorkspaceID = ps.WorkspaceID
 		}

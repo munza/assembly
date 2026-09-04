@@ -69,6 +69,7 @@ foreman
   project
     list
     add <path>               # register local repo; --name to override inferred name
+                             # --issue-prefix, --worktree-init, --branch-prefix
     get <project>
     remove <project>         # unregister only; --purge also tears down its worktrees
   issue
@@ -273,12 +274,15 @@ configuration, not runtime state:
     "workspace": "myteam"
   },
   "harness": "pi",
-  "branch_prefix": "foreman/",
   "projects": {
     "igloo": {
       "path": "/Users/me/code/igloo",
       "repo": "me/igloo",
-      "issue_prefix": "^(ENG|TAW)-"
+      "issue_prefix": "^(ENG|TAW)-",
+      "worktree": {
+        "init": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+        "branch_prefix": "foreman/"
+      }
     }
   }
 }
@@ -301,12 +305,21 @@ configuration, not runtime state:
   `python`/`pytest`/`pip install` — never push, never a blanket bypass) plus
   a `CLAUDE.md` with unattended setup/test instructions so it never stops to
   ask a question nobody is there to answer.
-- `branch_prefix` prepends to the slug to form the git branch name (e.g.
-  `foreman/` + `dem-1-something-slug` → `foreman/dem-1-something-slug`);
-  unset means the branch equals the slug, as before. The worktree's own
-  `slug` (used for its directory, tab labels, mailbox keys, agent names)
-  never carries the prefix — only `Worktree.Branch` does, which already
-  existed as a separate field for exactly this.
+- A project's `worktree` block (both fields optional; set via `project add
+  --worktree-init`/`--branch-prefix`, or hand-edit settings.json):
+  - `init`: a shell command `worktree add` runs in the new worktree's
+    checkout right after herdr creates it — e.g. a venv or
+    `docker compose build` so workers never hit missing deps. Runs via
+    `sh -c`, output streamed live; a failure only warns (the worktree is
+    already created and usable) rather than failing the whole command. Not
+    expanded through `${VAR}` — it's a real shell command, so the shell
+    resolves its own env vars.
+  - `branch_prefix`: prepends to the slug to form the git branch name (e.g.
+    `foreman/` + `dem-1-something-slug` → `foreman/dem-1-something-slug`);
+    unset means the branch equals the slug, as before. The worktree's own
+    `slug` (used for its directory, tab labels, mailbox keys, agent names)
+    never carries the prefix — only `Worktree.Branch` does, which already
+    existed as a separate field for exactly this.
 - The project workspace is adopted, not duplicated: `worktree add` first looks
   for an existing herdr workspace whose non-linked repo root matches the
   project path (symlinks resolved); only when none exists does it create one.

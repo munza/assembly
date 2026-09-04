@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -132,7 +133,7 @@ func newWorktreeCmd() *cobra.Command {
 			if _, ok := s.Worktrees[slug]; ok {
 				return fmt.Errorf("worktree %q already exists", slug)
 			}
-			branch := st.BranchPrefix + slug
+			branch := p.BranchPrefix + slug
 			title := ""
 			if issueID != "" {
 				if issue, err := issue.GetIssue(issueID, config.LinearAPIKey()); err == nil {
@@ -172,11 +173,20 @@ func newWorktreeCmd() *cobra.Command {
 			if flagDryRun {
 				fmt.Printf("would register worktree %s (project %s, branch %s, status %s)\n", slug, p.Name, branch, store.WtPlanning)
 				fmt.Println("would run: " + planRun("herdr", "worktree", "create", "--workspace", p.WorkspaceID, "--branch", branch, "--label", slug))
+				if p.WorktreeInit != "" {
+					fmt.Printf("would run worktree init: %s\n", p.WorktreeInit)
+				}
 				return nil
 			}
 			wsID, path, rootTabID, err := mux.WorktreeCreate(p.WorkspaceID, branch, addBase)
 			if err != nil {
 				return err
+			}
+			if p.WorktreeInit != "" {
+				fmt.Printf("running worktree init: %s\n", p.WorktreeInit)
+				if err := runWorktreeInit(path, p.WorktreeInit); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: worktree init failed: %v\n", err)
+				}
 			}
 			wt := &store.Worktree{
 				Slug:        slug,
@@ -481,6 +491,18 @@ func newResumeTopCmd() *cobra.Command {
 	c.Flags().StringVar(&refTask, "task", "", "resume via a task id (its worktree's hold)")
 	c.Flags().StringVar(&refWorktree, "worktree", "", "resume a worktree's hold")
 	return c
+}
+
+// runWorktreeInit runs a project's worktree.init command in a freshly
+// created worktree, streaming output live. A failure is the caller's to
+// warn about, not fatal: the worktree is already created and usable, just
+// maybe not fully set up.
+func runWorktreeInit(dir, command string) error {
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func findWorkspaceByRoot(path string) string {

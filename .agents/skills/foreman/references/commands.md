@@ -8,7 +8,7 @@ they would do, including herdr/gh calls).
 
 ```
 project list
-project add <path> [--name NAME] [--issue-prefix RE]
+project add <path> [--name NAME] [--issue-prefix RE] [--worktree-init CMD] [--branch-prefix PREFIX]
 project get <project>
 project remove <project> [--purge]
 ```
