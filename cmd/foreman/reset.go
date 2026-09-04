@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCleanCmd() *cobra.Command {
+func newResetCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "clean",
+		Use:   "reset",
 		Short: "Reset runtime state: stop the watchman, clear state.json and the mailbox (settings and binaries are kept)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stopped := false
@@ -63,7 +63,7 @@ func newCleanCmd() *cobra.Command {
 			}
 			output(map[string]any{"removed": removed, "watchman_stopped": stopped}, func() {
 				if len(removed) == 0 {
-					fmt.Println("nothing to clean")
+					fmt.Println("nothing to reset")
 				}
 				for _, r := range removed {
 					fmt.Printf("removed %s\n", r)

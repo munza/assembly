@@ -109,7 +109,7 @@ foreman
     send <task-id> <message> # --status done|blocked|failed|in-progress|self-review
   status                     # one-screen overview: worktrees + status, running
                              # tasks, unread mail — the central instance's home view
-  clean                      # reset: stop the watchman, clear state.json +
+  reset                      # stop the watchman, clear state.json +
                              # mailbox (settings, .env and bin/ kept)
   help
 ```

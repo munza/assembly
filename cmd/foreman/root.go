@@ -25,7 +25,7 @@ func newRootCmd() *cobra.Command {
 			if !flagDryRun {
 				for c := cmd; c != nil; c = c.Parent() {
 					switch c.Name() {
-					case "help", "completion", "clean":
+					case "help", "completion", "reset":
 						return nil
 					}
 				}
@@ -46,7 +46,7 @@ func newRootCmd() *cobra.Command {
 		newMailboxCmd(),
 		newStatusCmd(),
 		newResumeTopCmd(),
-		newCleanCmd(),
+		newResetCmd(),
 	)
 	root.AddCommand(newAliasCmds()...)
 	return root
