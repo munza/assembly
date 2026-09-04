@@ -66,19 +66,37 @@ func newMailboxCmd() *cobra.Command {
 	inbox.Flags().BoolVar(&inboxUnread, "unread", false, "show only unread messages")
 	inbox.Flags().BoolVar(&inboxFollow, "follow", false, "keep watching for new messages")
 
+	var waitStatus string
 	wait := &cobra.Command{
-		Use:   "wait",
+		Use:   "wait [--status a,b,...]",
 		Short: "Block until an unread message arrives, print it, and exit",
 		Long: "Block until at least one unread message exists, print them, mark them\n" +
 			"read, and exit. Unlike `inbox --follow`, this is one-shot: it exits on\n" +
 			"the first delivery. That exit is the point — agent runtimes wake a\n" +
 			"follow-up turn only when a background job *completes*, so a job that\n" +
 			"never exits never wakes anything. Run this under the background-task\n" +
-			"tool and re-arm it after every wake to receive each new message.",
+			"tool and re-arm it after every wake to receive each new message.\n" +
+			"\n" +
+			"--status filters what WAKES you (comma-separated task statuses and/or\n" +
+			"`watch`): every arriving message is still printed and marked read, but\n" +
+			"the process only exits when one matches — in-progress pings no longer\n" +
+			"burn a turn the triage table says needs no action.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return waitMailbox()
+			filter := map[string]bool{}
+			for _, part := range strings.Split(waitStatus, ",") {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
+				if part != "watch" && !store.ValidTaskStatus(part) {
+					return fmt.Errorf("invalid status %q; valid: %s (and watch)", part, strings.Join(store.TaskStatuses, ","))
+				}
+				filter[part] = true
+			}
+			return waitMailbox(filter)
 		},
 	}
+	wait.Flags().StringVar(&waitStatus, "status", "", "wake only on these statuses (comma-separated; task statuses and/or watch)")
 
 	send := &cobra.Command{
 		Use:   "send <task-id> <message>",
@@ -328,9 +346,10 @@ func followMailbox() error {
 
 // waitMailbox is the one-shot counterpart of followMailbox: it returns as
 // soon as one unread message batch has been printed, instead of streaming
-// forever.
-func waitMailbox() error {
-	if ms := drainUnread(); len(ms) > 0 {
+// forever. With a non-empty filter it keeps waiting (printing and marking
+// read everything that arrives) until a message matching the filter shows.
+func waitMailbox(filter map[string]bool) error {
+	if ms := drainUnread(); matchesFilter(ms, filter) {
 		return nil
 	}
 	w, err := watchman.New()
@@ -343,20 +362,38 @@ func waitMailbox() error {
 	}
 	// One more drain after arming the watcher closes the window between the
 	// first drain and AddDir where a write could slip through unobserved.
-	if ms := drainUnread(); len(ms) > 0 {
+	if ms := drainUnread(); matchesFilter(ms, filter) {
 		return nil
 	}
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-	select {
-	case <-sig:
-		return nil
-	case <-w.Events:
-		_ = drainUnread()
-		return nil
-	case err := <-w.Errors:
-		return err
+	for {
+		select {
+		case <-sig:
+			return nil
+		case <-w.Events:
+			if ms := drainUnread(); matchesFilter(ms, filter) {
+				return nil
+			}
+		case err := <-w.Errors:
+			return err
+		}
 	}
+}
+
+func matchesFilter(ms []*store.Message, filter map[string]bool) bool {
+	if len(ms) == 0 {
+		return false
+	}
+	if len(filter) == 0 {
+		return true
+	}
+	for _, m := range ms {
+		if filter[m.Status] || (m.From == "watch" && filter["watch"]) {
+			return true
+		}
+	}
+	return false
 }
 
 func drainUnread() []*store.Message {
