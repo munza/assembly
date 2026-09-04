@@ -10,8 +10,8 @@ import (
 	"text/template"
 
 	"assembly/internal/config"
-	"assembly/internal/mux"
 	"assembly/internal/harness"
+	"assembly/internal/mux"
 	"assembly/internal/store"
 
 	"github.com/spf13/cobra"
@@ -57,12 +57,12 @@ func newTaskCmd() *cobra.Command {
 			}
 			rows := make([]taskRow, len(tasks))
 			for i, t := range tasks {
-			status := t.Status
-			held := false
-			if wt, ok := s.Worktrees[t.Worktree]; ok && wt.Hold != "" {
-				held = true
-				status = t.Status + " (held)"
-			}
+				status := t.Status
+				held := false
+				if wt, ok := s.Worktrees[t.Worktree]; ok && wt.Hold != "" {
+					held = true
+					status = t.Status + " (held)"
+				}
 				rows[i] = taskRow{ID: t.ID, Worktree: t.Worktree, Held: held, Type: t.Type, Status: status, Note: oneLine(t.Note)}
 			}
 			tableOutput(rows)
@@ -134,104 +134,45 @@ func newTaskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wt, err := store.ResolveWorktree(s, t.Worktree)
-			if err != nil {
-				return err
-			}
-			if wt.WorkspaceID == "" {
-				return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
-			}
 			if t.TabID != "" {
 				return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, tabLabel(t), t.ID)
 			}
-			if t.Type == "build" || t.Type == "test" || t.Type == "fix" {
-				for _, pt := range store.WorktreeTasks(s, wt.Slug) {
-					if pt.Type == "plan" && pt.ID != t.ID && pt.Status != store.TaskDone && pt.Status != store.TaskFailed {
-						return fmt.Errorf("plan task %s is %s; %s starts only after plan is done or failed", pt.ID, pt.Status, t.Type)
-					}
-				}
-			}
-			label := t.Slug
-			if label == "" {
-				label = t.Type + "-" + t.ID
-			}
-			name := agentName(label)
-			bin := foremanBin()
-			if bin == "foreman" {
-				fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; run `foreman setup`\n")
-			}
-			cfg, err := config.Load()
+			return runTaskAgent(s, t)
+		},
+	}
+
+	rerun := &cobra.Command{
+		Use:   "rerun <task-id>",
+		Short: "Reset a task to pending and spawn its agent again (teardown first if running)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := store.Load()
 			if err != nil {
 				return err
 			}
-			harnessName := cfg.Harness
-			if harnessName == "" {
-				if detected, derr := mux.CurrentAgentKind(); derr == nil {
-					harnessName = detected
-				}
-			}
-			h, err := harness.For(harnessName)
+			t, err := store.ResolveTask(s, args[0])
 			if err != nil {
 				return err
 			}
-			stateDir, err := filepath.Abs(store.Dir())
-			if err != nil {
-				return err
-			}
-			prompt := buildPrompt(t, wt, bin, stateDir, pendingResearch(s, wt.Slug))
-			env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
-			if flagDryRun {
-				fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
-				startArgs := []string{"agent", "start", name, "--kind", h.Kind, "--pane", "<new-pane>"}
-				if len(h.Args) > 0 {
-					startArgs = append(startArgs, "--")
-					startArgs = append(startArgs, h.Args...)
-				}
-				fmt.Println("would run: " + planRun("herdr", startArgs...))
-				fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
-				fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
-				if wt.RootTabID != "" {
-					fmt.Println("would run: " + planRun("herdr", "tab", "close", wt.RootTabID))
-				}
-				return nil
-			}
-			tabID, paneID, err := mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
-			if err != nil && wt.Path != "" {
-				projWorkspaceID := ""
-				if ps, ok := s.Projects[wt.Project]; ok && ps != nil {
-					projWorkspaceID = ps.WorkspaceID
-				}
-				if newID, newRootTab, openErr := mux.WorktreeOpen(projWorkspaceID, wt.Path, wt.Slug); openErr == nil && newID != "" {
-					wt.WorkspaceID = newID
-					wt.RootTabID = newRootTab
-					_ = store.Save(s)
-					tabID, paneID, err = mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
-				}
-			}
-			if err != nil {
-				return err
-			}
-			if err := mux.AgentStart(name, paneID, h.Kind, h.Args...); err != nil {
-				_ = mux.TabClose(tabID)
-				return err
-			}
-			if err := mux.AgentPrompt(name, prompt); err != nil {
-				return err
-			}
-			if wt.RootTabID != "" {
-				if err := mux.TabClose(wt.RootTabID); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: could not close root tab %s: %v\n", wt.RootTabID, err)
+			if t.TabID != "" {
+				if flagDryRun {
+					fmt.Println("would run: " + planRun("herdr", "tab", "close", t.TabID))
 				} else {
-					wt.RootTabID = ""
+					if err := mux.TabClose(t.TabID); err != nil {
+						fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+					}
+					t.TabID, t.PaneID, t.AgentName = "", "", ""
 				}
 			}
-			t.TabID, t.PaneID, t.AgentName = tabID, paneID, name
-			t.Status = store.TaskInProgress
+			if flagDryRun {
+					fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskPending)
+					return nil
+			}
+			t.Status = store.TaskPending
 			if err := store.Save(s); err != nil {
 				return err
 			}
-			fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, label)
-			return nil
+			return runTaskAgent(s, t)
 		},
 	}
 
@@ -350,8 +291,109 @@ func newTaskCmd() *cobra.Command {
 		Use:   "task",
 		Short: "Manage tasks executed by pi agents in worktree tabs",
 	}
-	cmd.AddCommand(list, add, get, execute, update, teardown, remove)
+	cmd.AddCommand(list, add, get, execute, rerun, update, teardown, remove)
 	return cmd
+}
+
+func runTaskAgent(s *store.State, t *store.Task) error {
+	wt, err := store.ResolveWorktree(s, t.Worktree)
+	if err != nil {
+		return err
+	}
+	if wt.WorkspaceID == "" {
+		return fmt.Errorf("worktree %s has no herdr workspace; recreate it", wt.Slug)
+	}
+	if t.TabID != "" {
+		return fmt.Errorf("task %s already has an agent (tab %s); use `task rerun %s` or teardown first", t.ID, tabLabel(t), t.ID)
+	}
+	if t.Type == "build" || t.Type == "test" || t.Type == "fix" {
+		for _, pt := range store.WorktreeTasks(s, wt.Slug) {
+			if pt.Type == "plan" && pt.ID != t.ID && pt.Status != store.TaskDone && pt.Status != store.TaskFailed {
+				return fmt.Errorf("plan task %s is %s; %s starts only after plan is done or failed", pt.ID, pt.Status, t.Type)
+			}
+		}
+	}
+	label := t.Slug
+	if label == "" {
+		label = t.Type + "-" + t.ID
+	}
+	name := agentName(label)
+	bin := foremanBin()
+	if bin == "foreman" {
+		fmt.Fprintf(os.Stderr, "note: workers need the foreman binary; run `foreman setup`\n")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	harnessName := cfg.Harness
+	if harnessName == "" {
+		if detected, derr := mux.CurrentAgentKind(); derr == nil {
+			harnessName = detected
+		}
+	}
+	h, err := harness.For(harnessName)
+	if err != nil {
+		return err
+	}
+	stateDir, err := filepath.Abs(store.Dir())
+	if err != nil {
+		return err
+	}
+	prompt := buildPrompt(t, wt, bin, stateDir, pendingResearch(s, wt.Slug))
+	env := map[string]string{"FOREMAN_STATE_DIR": stateDir, "FOREMAN_BIN": bin}
+	if flagDryRun {
+		fmt.Println("would run: " + planRun("herdr", "tab", "create", "--workspace", wt.WorkspaceID, "--label", label, "--no-focus", "--env", "FOREMAN_STATE_DIR="+stateDir, "--env", "FOREMAN_BIN="+bin))
+		startArgs := []string{"agent", "start", name, "--kind", h.Kind, "--pane", "<new-pane>"}
+		if len(h.Args) > 0 {
+			startArgs = append(startArgs, "--")
+			startArgs = append(startArgs, h.Args...)
+		}
+		fmt.Println("would run: " + planRun("herdr", startArgs...))
+		fmt.Println("would run: " + planRun("herdr", "agent", "prompt", name, prompt))
+		fmt.Printf("would set task %s status %s -> %s\n", t.ID, t.Status, store.TaskInProgress)
+		if wt.RootTabID != "" {
+			fmt.Println("would run: " + planRun("herdr", "tab", "close", wt.RootTabID))
+		}
+		return nil
+	}
+	tabID, paneID, err := mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+	if err != nil && wt.Path != "" {
+		projWorkspaceID := ""
+		if ps, ok := s.Projects[wt.Project]; ok && ps != nil {
+			projWorkspaceID = ps.WorkspaceID
+		}
+		if newID, newRootTab, openErr := mux.WorktreeOpen(projWorkspaceID, wt.Path, wt.Slug); openErr == nil && newID != "" {
+			wt.WorkspaceID = newID
+			wt.RootTabID = newRootTab
+			_ = store.Save(s)
+			tabID, paneID, err = mux.TabCreate(wt.WorkspaceID, wt.Path, label, env)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if err := mux.AgentStart(name, paneID, h.Kind, h.Args...); err != nil {
+		_ = mux.TabClose(tabID)
+		return err
+	}
+	if err := mux.AgentPrompt(name, prompt); err != nil {
+		return err
+	}
+	if wt.RootTabID != "" {
+		if err := mux.TabClose(wt.RootTabID); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not close root tab %s: %v\n", wt.RootTabID, err)
+		} else {
+			wt.RootTabID = ""
+		}
+	}
+	t.TabID, t.PaneID, t.AgentName = tabID, paneID, name
+	t.Status = store.TaskInProgress
+	if err := store.Save(s); err != nil {
+		return err
+	}
+	fmt.Printf("task %s running as agent %s in tab %s\n", t.ID, name, label)
+	return nil
 }
 
 func addTask(typ, note, slug, worktreeRef, noteKind string) (*store.Task, error) {
