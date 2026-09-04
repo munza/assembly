@@ -42,7 +42,10 @@ where the user is the requested reviewer (mailbox delivery surfaces
    `--comments-json '[{"path":"...","line":N,"body":"..."}]'` entry (one
    array, all findings together); a file-level finding without a line, or
    one untied to any file, goes in `--body` instead (a short summary line
-   plus those). Then:
+   plus those). It's posted as Markdown — keep every code-like token
+   (routes, paths, identifiers) backtick-wrapped when carrying findings
+   text over; a bare `/items/{item_id}` renders as plain text, `` `/items/{item_id}` ``
+   renders as code. Then:
    - Publish immediately → `pr review <N> --verdict <approve|comment|request-changes>
      --body "<summary/untied findings>" --comments-json '<array>'` (repo
      resolves via the `pr-<N>` worktree).

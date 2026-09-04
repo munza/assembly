@@ -452,7 +452,7 @@ func buildPrompt(t *store.Task, wt *store.Worktree, bin, stateDir string, resear
 		fmt.Fprintf(&b, "Commit your changes on the worktree branch with a brief plain message before reporting done; never report done with uncommitted changes.\n")
 	}
 	if t.Type == "review" {
-		fmt.Fprintf(&b, "End your done message with `FINDINGS: none` if the work is clean, or `FINDINGS:` followed by one numbered finding per line. Tag each finding with its exact location so it can be posted as an inline PR comment there: `<path>:<line> — <description>` for a specific line, `<path> — <description>` for a file-level finding with no single line, or plain text only when it isn't tied to any file.\n")
+		fmt.Fprintf(&b, "End your done message with `FINDINGS: none` if the work is clean, or `FINDINGS:` followed by one numbered finding per line. Tag each finding with its exact location so it can be posted as an inline PR comment there: `<path>:<line> — <description>` for a specific line, `<path> — <description>` for a file-level finding with no single line, or plain text only when it isn't tied to any file. Findings get posted to GitHub as Markdown: wrap every code-like token (routes, paths, identifiers, function/variable names) in backticks, e.g. `` `/items/{item_id}` ``, not bare `/items/{item_id}`.\n")
 	}
 	if t.Type == "plan" || t.Type == "build" || t.Type == "fix" {
 		fmt.Fprintf(&b, "You may spawn parallel research when you need answers: `%s research \"<question>\" --worktree %s` then `%s task execute <new-task-id>`. Research reports to the central agent independently.\n", bin, wt.Slug, bin)
