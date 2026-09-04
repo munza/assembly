@@ -34,40 +34,48 @@ foreman project add            ->  register a local repo
 foreman issue get <id>         ->  fetch a Linear issue
 foreman worktree add <id>      ->   git worktree + herdr workspace for that issue
 foreman task add / execute     ->  spawn a worker (pi/claude, per the harness) to do the work
+foreman pipeline add / update  ->  track which half (plan|build|pr|respond) a worktree is in
 foreman pr create              ->  push, open the PR
 ```
 
 Everything a worker reports — done, blocked, failed — and every GitHub event
 watchman picks up lands in one mailbox. The central instance reads it via a
 harness-appropriate delivery mechanism (a persistent background monitor for
-Claude Code, a re-armed poller for pi) that never touches its own input line.
+Claude Code, a re-armed `foreman mailbox wait` for pi) that never touches its
+own input line.
 
 ## The foreman skill
 
 `.agents/skills/foreman/` (symlinked into `.claude/skills/` for Claude Code)
 is the playbook the central instance actually follows — the CLI above is
-just the mechanism. It defines the `start <issue-id>` kickoff (fetch the
-issue, create the worktree, ask what to run — plan first? which research in
-parallel? auto-build after plan?), how to react to each kind of worker
-report (done/blocked/failed) and PR event, and how the watchman daemon and
-mailbox fit together. Read `.agents/skills/foreman/SKILL.md` for the full
-flow, or just ask the central instance to run it.
+just the mechanism. It covers the ground rules (never touch worker repos,
+confirm before spawning, one-line summaries for the user), how to react to
+each kind of worker report (done/blocked/failed, research reports relayed
+into a waiting plan) and PR event, and how the watchman daemon and mailbox
+fit together. Read `.agents/skills/foreman/SKILL.md`, or just ask the
+central instance to run it.
 
 ## The pipeline skill
 
 `.agents/skills/pipeline/` is the gated, make-no-mistake version of the same
-work for one worktree — stages advance automatically on each `done`, with
-capped fix-loops instead of silent retries:
+work for one worktree — one half per phase, stages advancing automatically
+on each `done`, capped fix-loops instead of silent retries:
 
 ```
-build:  PLAN → BUILD → TEST → REVIEW  (findings loop back to a FIX round)
+plan:   ISSUE → WORKTREE → RESEARCH ∥ PLAN
+build:  BUILD → TEST → REVIEW   (findings loop back to a FIX round)
 pr:     DOC → LINT → PR → CI CHECK → WATCH → MERGED
 ```
 
-`pipeline build <worktree|issue>` runs the build half, `pipeline pr
-<worktree>` runs the ship half, plain `pipeline <worktree|issue>` runs both
-back to back, and `pipeline review <pr>` reviews someone else's PR the same
-gated way. See `.agents/skills/pipeline/SKILL.md` and its `references/`.
+`pipeline plan <issue-id>` is the kickoff (it asks what to run — plan,
+which research, auto-build), `pipeline build <worktree|issue>`, `pipeline
+pr <worktree>`, and `pipeline respond <worktree|pr>` each run one half,
+plain `pipeline <worktree|issue>` chains plan → build → pr without
+stopping, and `pipeline review <pr>` reviews someone else's PR the same
+gated way. Every handover moves the `foreman pipeline` record — the half
+cursor plus an index of every output document the tasks produced — so any
+half resumes from state (`foreman pipeline get <worktree>`). See
+`.agents/skills/pipeline/SKILL.md` and its `references/`.
 
 ## Requirements
 
@@ -79,7 +87,7 @@ gated way. See `.agents/skills/pipeline/SKILL.md` and its `references/`.
 ## Build
 
 ```sh
-go build -o .assembly/bin/ ./cmd/...
+foreman setup    # builds .assembly/bin/foreman + .assembly/bin/watchman
 ```
 
 Workers need the `foreman` binary on `PATH` or reachable via `FOREMAN_BIN`
@@ -112,6 +120,7 @@ Secrets go in `.assembly/.env` (see `.env.example`), referenced as `${VAR}`.
 ## Quick start
 
 ```sh
+foreman setup
 foreman project add /path/to/repo --issue-prefix '^ENG-'
 foreman issue get ENG-123
 foreman worktree add ENG-123 rate limiter
@@ -119,6 +128,9 @@ foreman plan "map out the fix" --worktree eng-123
 foreman task execute t1
 foreman status
 ```
+
+Or skip the raw loop and let the central agent run the gated flow end to
+end: ask it for `pipeline ENG-123`.
 
 ## Full documentation
 
