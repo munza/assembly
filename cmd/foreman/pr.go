@@ -17,8 +17,8 @@ import (
 func newPRCmd() *cobra.Command {
 	var (
 		createTitle, createBase string
-		createNoTemplate       bool
-		getComments            bool
+		createNoTemplate        bool
+		getComments             bool
 	)
 
 	create := &cobra.Command{
@@ -73,14 +73,17 @@ func newPRCmd() *cobra.Command {
 			if flagDryRun {
 				fmt.Println("would run: git -C " + wt.Path + " push -u origin " + wt.Branch)
 				if tmplPath != "" {
-				fmt.Println("would use PR template: " + tmplPath)
-			}
+					fmt.Println("would use PR template: " + tmplPath)
+				}
 				ghArgs := []string{"gh", "pr", "create", "--title", title, "--head", wt.Branch, "--repo", p.Repo}
 				if createBase != "" {
 					ghArgs = append(ghArgs, "--base", createBase)
 				}
 				fmt.Println("would run: " + quoteAll(ghArgs...))
-				fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
+				switch wt.Status {
+				case store.WtPlanning, store.WtBuilding, store.WtBlocked, store.WtFailed:
+					fmt.Printf("would set worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
+				}
 				return nil
 			}
 			if err := git.Push(wt.Path, wt.Branch); err != nil {
@@ -95,7 +98,9 @@ func newPRCmd() *cobra.Command {
 				prNum, _ = strconv.Atoi(url[i+1:])
 			}
 			wt.PR = prNum
-			if !existed && wt.Status != store.WtPROpen {
+			switch wt.Status {
+			case store.WtPlanning, store.WtBuilding, store.WtBlocked, store.WtFailed:
+				fmt.Printf("worktree %s status %s -> %s\n", wt.Slug, wt.Status, store.WtPROpen)
 				wt.Status = store.WtPROpen
 			}
 			if err := store.Save(s); err != nil {
@@ -180,11 +185,11 @@ func newPRCmd() *cobra.Command {
 			}
 			if flagDryRun {
 				if commentReplyID > 0 {
-				fmt.Printf("would run: gh api repos/%s/pulls/%d/comments/%d/replies (body: %s)\n", p.Repo, prNum, commentReplyID, oneLine(commentBody))
+					fmt.Printf("would run: gh api repos/%s/pulls/%d/comments/%d/replies (body: %s)\n", p.Repo, prNum, commentReplyID, oneLine(commentBody))
 				} else {
-				fmt.Printf("would run: gh pr comment %d --repo %s (body: %s)\n", prNum, p.Repo, oneLine(commentBody))
-			}
-			return nil
+					fmt.Printf("would run: gh pr comment %d --repo %s (body: %s)\n", prNum, p.Repo, oneLine(commentBody))
+				}
+				return nil
 			}
 			if commentReplyID > 0 {
 				id, err := git.PRReplyComment(p.Repo, prNum, commentReplyID, commentBody)
@@ -229,20 +234,20 @@ func newPRCmd() *cobra.Command {
 			s, err := store.Load()
 			if err != nil {
 				return err
-		}
+			}
 			st, err := config.Load()
 			if err != nil {
 				return err
-		}
+			}
 			repo := reviewRepo
 			if repo == "" {
 				if wt, ok := s.Worktrees[fmt.Sprintf("pr-%d", prNum)]; ok {
-				repo = st.Projects[wt.Project].Repo
-			} else if len(st.Projects) == 1 {
-				for _, p := range st.Projects {
-					repo = p.Repo
+					repo = st.Projects[wt.Project].Repo
+				} else if len(st.Projects) == 1 {
+					for _, p := range st.Projects {
+						repo = p.Repo
+					}
 				}
-			}
 			}
 			if repo == "" {
 				return fmt.Errorf("cannot resolve repo; pass --repo owner/name (or --project context)")
