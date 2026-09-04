@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -144,6 +145,26 @@ func AgentStart(name, paneID, kind string, agentArgs ...string) error {
 func AgentPrompt(name, text string) error {
 	_, err := RunJSON("agent", "prompt", name, text)
 	return err
+}
+
+// CurrentAgentKind reports the herdr agent kind (e.g. "claude", "pi") running
+// in this process's own pane, identified via HERDR_PANE_ID. Used to default
+// the worker harness to whatever the central foreman instance is itself
+// running, instead of a fixed setting.
+func CurrentAgentKind() (string, error) {
+	pane := os.Getenv("HERDR_PANE_ID")
+	if pane == "" {
+		return "", fmt.Errorf("HERDR_PANE_ID not set")
+	}
+	res, err := RunJSON("agent", "get", pane)
+	if err != nil {
+		return "", err
+	}
+	kind := str(res, "result", "agent", "agent")
+	if kind == "" {
+		return "", fmt.Errorf("herdr agent get %s: no agent kind in response", pane)
+	}
+	return kind, nil
 }
 
 // PaneAgentAlive reports whether the pane exists and still runs an agent

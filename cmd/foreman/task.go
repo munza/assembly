@@ -164,7 +164,13 @@ func newTaskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			h, err := harness.For(cfg.Harness)
+			harnessName := cfg.Harness
+			if harnessName == "" {
+				if detected, derr := mux.CurrentAgentKind(); derr == nil {
+					harnessName = detected
+				}
+			}
+			h, err := harness.For(harnessName)
 			if err != nil {
 				return err
 			}

@@ -14,7 +14,8 @@ type Harness struct {
 }
 
 var registry = map[string]*Harness{
-	"pi": Pi,
+	"pi":     Pi,
+	"claude": Claude,
 }
 
 func For(name string) (*Harness, error) {

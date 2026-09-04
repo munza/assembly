@@ -260,9 +260,23 @@ configuration, not runtime state:
 }
 ```
 
-- `harness` selects the worker coding-agent harness (default `pi`);
-  harnesses live in `internal/harness/` (`pi.go`; add `claude.go` etc. there).
-  Each harness runs with its own defaults — no model/thinking overrides.
+- `harness` is an optional override for the worker coding-agent harness;
+  harnesses live in `internal/harness/` (`pi.go`, `claude.go`). Left unset
+  (the normal case), `task execute` detects it automatically from the herdr
+  agent kind running in the central foreman's own pane (`herdr agent get
+  $HERDR_PANE_ID`, `mux.CurrentAgentKind`) — workers match whatever agent is
+  orchestrating them. Falls back to `pi` only if detection fails (not running
+  under herdr, herdr unreachable). Each harness runs with its own defaults —
+  no model/thinking overrides.
+- The `claude` harness needs one-time-per-project setup before it can run
+  unattended: trust the project's main checkout once interactively (git
+  worktrees inherit that trust automatically — no per-worktree action
+  needed), and give it a permission allow-list via that project's own
+  `.claude/settings.json` (Edit/Write/Read plus the exact `Bash(...)`
+  patterns the worker needs, e.g. `git status/diff/add/commit/log`,
+  `python`/`pytest`/`pip install` — never push, never a blanket bypass) plus
+  a `CLAUDE.md` with unattended setup/test instructions so it never stops to
+  ask a question nobody is there to answer.
 - The project workspace is adopted, not duplicated: `worktree add` first looks
   for an existing herdr workspace whose non-linked repo root matches the
   project path (symlinks resolved); only when none exists does it create one.
@@ -316,7 +330,7 @@ Both files are created lazily on first write — an empty `.assembly/` with only
   - `internal/config/` — `.assembly/settings.json` load/save, `${ENV}` expansion, and key accessors (`LinearAPIKey`).
   - `internal/git/` — local git helpers plus GitHub PR calls via `gh`.
   - `internal/mux/` (`herdr.go`; tmux/cmux later), `internal/issue/`
-    (`linear.go`; jira later), `internal/harness/` (`pi.go`; claude later) —
+    (`linear.go`; jira later), `internal/harness/` (`pi.go`, `claude.go`) —
     thin wrappers.
   - `internal/store/` — `.assembly/` state load/save.
   - `internal/watchman/` — the daemon core: mailbox watching + push delivery,
