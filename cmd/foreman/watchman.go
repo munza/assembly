@@ -9,33 +9,34 @@ import (
 	"assembly/internal/watchman"
 )
 
-// ensureWatchman lazily starts the detached watchman when a foreman command
-// runs inside the foreman tab: a herdr pane of the assembly repo itself.
-// Worker tabs (FOREMAN_STATE_DIR set) and plain terminals never trigger it.
-// Best-effort: failures print one warning and never fail the command.
-func ensureWatchman() {
+// ensureWatchman guarantees a running watchman before any foreman command
+// proceeds, when run inside the foreman tab: a herdr pane of the assembly
+// repo itself. It starts the detached daemon if none is running and fails
+// the command otherwise -- a foreman tab without its daemon silently loses
+// every worker report and PR event. Worker tabs (FOREMAN_STATE_DIR set),
+// plain terminals, and FOREMAN_NO_WATCHMAN=1 are exempt.
+func ensureWatchman() error {
 	if os.Getenv("FOREMAN_NO_WATCHMAN") != "" || os.Getenv("FOREMAN_STATE_DIR") != "" {
-		return
+		return nil
 	}
 	pane := os.Getenv("HERDR_PANE_ID")
 	if pane == "" {
-		return
+		return nil
 	}
 	if _, err := os.Stat(filepath.Join(store.Dir(), "settings.json")); err != nil {
-		return
+		return nil
 	}
 	if watchman.Running() != nil {
-		return
+		return nil
 	}
 	bin := resolveWatchmanBin()
 	if bin == "" {
-		fmt.Fprintln(os.Stderr, "watchman: no binary found; run `foreman setup`")
-		return
+		return fmt.Errorf("watchman is not running and no binary was found; run `foreman setup` and retry")
 	}
-	_, _, err := watchman.SpawnDetached(bin, watchman.Options{Interval: 60, PRs: true, ForemanPane: pane})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "watchman: %v\n", err)
+	if _, _, err := watchman.SpawnDetached(bin, watchman.Options{Interval: 60, PRs: true, ForemanPane: pane}); err != nil {
+		return fmt.Errorf("watchman is not running: %v", err)
 	}
+	return nil
 }
 
 func resolveWatchmanBin() string {

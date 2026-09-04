@@ -85,6 +85,15 @@ func logf(format string, args ...any) {
 // foreman pane it is bound to disappears. It polls GitHub and writes results
 // into the mailbox; it does not deliver messages itself (see package doc).
 func Run(opts Options) error {
+	// Single-instance guard: exactly one watchman per state dir. The
+	// check-then-start race in SpawnDetached (two foreman commands run in
+	// parallel both see no state file) can still spawn two children; the
+	// state-file race resolves here -- last writer keeps the lock, the other
+	// exits without touching the winner's state file.
+	if st := Running(); st != nil && st.PID != os.Getpid() {
+		logf("another watchman (pid %d) already running; exiting", st.PID)
+		return nil
+	}
 	if opts.Interval > 0 && !git.GhAvailable() {
 		logf("gh not found in PATH; GitHub polling disabled")
 		opts.Interval = 0
@@ -93,7 +102,15 @@ func Run(opts Options) error {
 	if err := writeState(st); err != nil {
 		return err
 	}
-	defer os.Remove(StatePath())
+	if cur, _ := ReadState(); cur != nil && cur.PID != os.Getpid() {
+		logf("another watchman (pid %d) took over; exiting", cur.PID)
+		return nil
+	}
+	defer func() {
+		if cur, _ := ReadState(); cur != nil && cur.PID == os.Getpid() {
+			_ = os.Remove(StatePath())
+		}
+	}()
 	logf("started pid %d, foreman pane %q, poll interval %ds", st.PID, opts.ForemanPane, opts.Interval)
 
 	seen := NewSeenComments()

@@ -25,11 +25,11 @@ func newRootCmd() *cobra.Command {
 			if !flagDryRun {
 				for c := cmd; c != nil; c = c.Parent() {
 					switch c.Name() {
-					case "help", "completion", "reset":
+					case "help", "completion", "reset", "setup":
 						return nil
 					}
 				}
-				ensureWatchman()
+				return ensureWatchman()
 			}
 			return nil
 		},

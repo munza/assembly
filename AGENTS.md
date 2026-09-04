@@ -155,10 +155,16 @@ watchman status
 ```
 
 Any foreman command run from the foreman tab (a herdr pane whose `.assembly/`
-holds `settings.json`, no `FOREMAN_STATE_DIR` set) lazily starts the detached
-watchman bound to that pane; it exits when the pane's agent is gone (tab
-closed or pi exited). `FOREMAN_NO_WATCHMAN=1`
-disables auto-start.
+holds `settings.json`, no `FOREMAN_STATE_DIR` set) guarantees a running
+watchman before it proceeds: it starts the detached daemon bound to that
+pane if needed, and **fails the command** if it cannot (missing binary →
+run `foreman setup`; spawn failure → see the log). Exactly one daemon runs
+per state dir — the daemon itself refuses to start when another live
+instance holds the state file, so parallel foreman commands cannot fork
+duplicates. It exits when the pane's agent is gone (tab closed or pi
+exited). `FOREMAN_NO_WATCHMAN=1` disables the check entirely; `foreman
+setup`, `foreman help`, and `foreman reset` are exempt (setup builds the
+binary the check itself needs).
 
 ### Aliases (shortcuts to `task add`)
 
